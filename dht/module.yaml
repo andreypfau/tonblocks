@@ -1,0 +1,19 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+dependencies:
+  - $libs.kotlinx.io.core
+  - $libs.kotlinx.datetime
+  - $libs.kotlinx.serialization.core
+  - $libs.kotlinx.crypto.sha2
+  - $libs.kotlinx.coroutines.core
+  - ../keys
+  - ../adnl
+  - ../tonapi-tl
+  - ../tl-serialization
+  - ../kv
+
+test-dependencies:
+  - $libs.ktor.network

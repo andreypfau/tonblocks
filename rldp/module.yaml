@@ -1,0 +1,10 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+dependencies:
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.3.2
+  - io.ktor:ktor-network:3.0.0-beta-1
+  - ../keys
+  - ../adnl

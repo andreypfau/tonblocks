@@ -1,0 +1,23 @@
+[versions]
+parsus = "0.6.1"
+kotlinpoet = "1.15.3"
+kotlinx-crypto = "0.0.4"
+kotlinx-io = "0.3.2"
+kotlinx-serialization = "1.6.3"
+kotlinx-datetime = "0.6.0-RC.2"
+curve25519 = "0.0.8"
+ktor = "3.0.0-beta-1"
+
+[libraries]
+parsus = { module = "me.alllex.parsus:parsus", version.ref = "parsus" }
+kotlinpoet = { module = "com.squareup:kotlinpoet", version.ref = "kotlinpoet" }
+kotlinx-crypto-crc32 = { module = "io.github.andreypfau:kotlinx-crypto-crc32", version.ref = "kotlinx-crypto" }
+kotlinx-crypto-sha2 = { module = "io.github.andreypfau:kotlinx-crypto-sha2", version.ref = "kotlinx-crypto" }
+kotlinx-crypto-aes = { module = "io.github.andreypfau:kotlinx-crypto-aes", version.ref = "kotlinx-crypto" }
+kotlinx-io-core = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
+kotlinx-atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version = "0.24.0" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.8.0" }
+ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
+curve25519 = { module = "io.github.andreypfau:curve25519-kotlin", version.ref = "curve25519" }

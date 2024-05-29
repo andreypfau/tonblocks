@@ -1,0 +1,6 @@
+product: jvm/app
+
+settings:
+  kotlin:
+    freeCompilerArgs:
+      - "-opt-in=kotlin. ExperimentalStdlibApi"

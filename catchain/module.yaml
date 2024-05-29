@@ -1,0 +1,9 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+dependencies:
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.3.2
+  - org.jetbrains.kotlinx:kotlinx-datetime:0.6.0-RC.2
+  - ../keys

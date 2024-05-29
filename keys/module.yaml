@@ -1,0 +1,16 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+settings:
+  kotlin:
+    serialization:
+      format: json
+dependencies:
+  - $libs.kotlinx.io.core
+  - $libs.curve25519
+  - $libs.kotlinx.crypto.sha2
+  - $libs.kotlinx.crypto.aes
+  - ../tl-serialization
+  - ../tonapi-tl

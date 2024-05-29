@@ -1,0 +1,13 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+settings:
+  kotlin:
+    serialization:
+      format: json
+
+dependencies:
+  - $libs.kotlinx.io.core
+  - ../tl-serialization
