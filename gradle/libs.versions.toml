@@ -7,6 +7,7 @@ kotlinx-serialization = "1.6.3"
 kotlinx-datetime = "0.6.0-RC.2"
 curve25519 = "0.0.8"
 ktor = "3.0.0-beta-1"
+cache4k = "0.13.0"
 
 [libraries]
 parsus = { module = "me.alllex.parsus:parsus", version.ref = "parsus" }
@@ -21,3 +22,4 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version = "1.8.0" }
 ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
 curve25519 = { module = "io.github.andreypfau:curve25519-kotlin", version.ref = "curve25519" }
+cache4k = { module = "io.github.reactivecircus.cache4k:cache4k", version.ref = "cache4k" }

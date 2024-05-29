@@ -17,6 +17,8 @@ class PublicKeyAes(
 
     override fun createEncryptor() = EncryptorAes(sharedSecret)
 
+    fun toByteArray(): ByteArray = sharedSecret.copyOf()
+
     override fun tl(): tl.ton.PublicKey {
         return tl.ton.PublicKey.Aes(ByteString(*sharedSecret))
     }
@@ -30,6 +32,8 @@ class PrivateKeyAes(
     override fun publicKey(): PublicKey = PublicKeyAes(sharedSecret)
 
     override fun createDecryptor() = DecryptorAes(sharedSecret)
+
+    fun toByteArray(): ByteArray = sharedSecret.copyOf()
 
     override fun tl(): tl.ton.PrivateKey {
         return tl.ton.PrivateKey.Aes(ByteString(*sharedSecret))

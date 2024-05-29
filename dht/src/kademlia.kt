@@ -11,7 +11,8 @@ infix fun ByteString.xorDist(other: ByteString): Int {
         if (xor == 0) {
             distance -= 8
         } else {
-            distance -= (xor.countLeadingZeroBits() - 24)
+            val d = (xor.countLeadingZeroBits() - 24)
+            distance -= d
             break
         }
     }
@@ -38,7 +39,7 @@ class KademliaRoutingTable<T : Comparable<T>>(
     private val distanceToSelf: (T) -> Int = { nodeId(it) xorDist selfId }
 ) : Set<T> {
     private val idBitSize = selfId.size * Byte.SIZE_BITS
-    private val buckets = Array(idBitSize) { KademliaBucket<T>(k) }
+    private val buckets = Array(idBitSize + 1) { KademliaBucket(k, nodeId) }
 
     override val size: Int
         get() = buckets.fold(0) { acc, bucket -> acc + bucket.size }
@@ -88,9 +89,10 @@ class KademliaRoutingTable<T : Comparable<T>>(
 class KademliaBucket<T : Comparable<T>>(
     private val entries: MutableList<T>,
     private val k: Int,
-    private val maxCandidates: Int = k
+    private val maxCandidates: Int = k,
+    private val nodeId: (T) -> ByteString
 ) : Set<T> {
-    constructor(k: Int) : this(mutableListOf(), k)
+    constructor(k: Int, nodeId: (T) -> ByteString) : this(mutableListOf(), k, k, nodeId)
 
     private val candidates = mutableListOf<T>()
 
@@ -109,9 +111,9 @@ class KademliaBucket<T : Comparable<T>>(
         candidates.remove(node)
 
         for (i in entries.indices) {
-            if (entries[i] == node) {
+            if (nodeId(entries[i]) == nodeId(node)) {
                 entries.sort()
-                return null
+                return node
             }
         }
 
@@ -121,7 +123,7 @@ class KademliaBucket<T : Comparable<T>>(
             if (candidates.size > maxCandidates) {
                 candidates.removeLast()
             }
-            return entries.last()
+            return null
         }
 
         entries.add(node)

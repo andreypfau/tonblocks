@@ -1,13 +1,16 @@
 package io.tonblocks.adnl
 
 import io.github.andreypfau.tl.serialization.TL
+import io.github.reactivecircus.cache4k.Cache
 import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.channel.AdnlChannel
 import io.tonblocks.adnl.message.*
 import io.tonblocks.adnl.query.AdnlQueryId
 import io.tonblocks.adnl.transport.AdnlTransport
+import io.tonblocks.crypto.Decryptor
 import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.atomicfu.atomic
+import kotlinx.atomicfu.update
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -44,17 +47,45 @@ abstract class AdnlConnection(
     val recvCounter = AdnlPacketCounter(transport.reinitDate)
     val sendCounter = AdnlPacketCounter()
     private var addressList = addressList
+    private val transfers = Cache.Builder<ByteString, AdnlPartMessageTransfer>()
+        .expireAfterWrite(5.seconds)
+        .maximumCacheSize(10)
+        .build()
 
-    var channel: AdnlChannel? by atomic(null)
-        private set
+    internal var channel = atomic<AdnlChannel?>(null)
 
     private val queries = mutableMapOf<AdnlQueryId, CompletableDeferred<Buffer>>()
 
-    internal suspend fun handlePacket(data: ByteReadPacket) {
-        println("[$localId] Handling packet from $remoteId")
-        val channel = channel
-        val decryptor = channel?.input?.decryptor ?: localNode.key.createDecryptor()
-        val decrypted = decryptor.decryptToByteArray(data.readBytes())
+    internal suspend fun handlePacket(dest: AdnlNodeIdShort, address: AdnlAddress, data: ByteReadPacket) {
+        if (data.remaining < 32) {
+            return
+        }
+        val channel = channel.value
+        val decryptor: Decryptor
+        if (channel != null) {
+            println("$this w  channel checking $data - $dest | ${channel.input.id}")
+            if (channel.input.id != dest.publicKeyHash) {
+                return
+            }
+            decryptor = channel.input.decryptor
+        } else {
+            println("$this w/o channel checking $data - $dest | $localId")
+            if (localId != dest) {
+                return
+            }
+            decryptor = localNode.key.createDecryptor()
+        }
+
+        println("$this Handling packet (${data} bytes) for $localId decryptor:$decryptor ${if (channel != null) "using channel: $channel" else ""}")
+        val readData = data.copy().readBytes()
+        var decrypted: ByteArray
+        try {
+            decrypted = decryptor.decryptToByteArray(readData)
+        } catch (e: Exception) {
+            return
+        }
+        data.discard(readData.size)
+
         val packet = AdnlPacket(tl = TL.Boxed.decodeFromByteArray<AdnlPacketContents>(decrypted))
 
         if (channel == null) {
@@ -67,7 +98,7 @@ abstract class AdnlConnection(
         val seqno = packet.seqno
         if (seqno != null) {
             recvCounter.seqno = seqno
-            println("recv packet $remoteId -> $localId, seqno S${sendCounter.seqno}, R${recvCounter.seqno}")
+            println("$this recv packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} : ${packet.tl()}")
         }
 
         val confirmSeqno = packet.confirmSeqno
@@ -87,26 +118,52 @@ abstract class AdnlConnection(
         packet.messages.forEach { message ->
             handleMessage(message)
         }
+
+        return
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     suspend fun handleMessage(message: AdnlMessage) {
         println("Process message: $message")
         when (message) {
             is AdnlMessagePart -> {
-                println("skip big messages")
+                val transferId = message.hash
+                val transfer = transfers.get(transferId) {
+                    AdnlPartMessageTransfer(
+                        hash = transferId,
+                        totalSize = message.totalSize,
+                        updatedAt = Clock.System.now()
+                    )
+                }
+                if (transfer.update(message)) {
+                    println("$this added part: ${message.offset}@${message.hash}")
+                }
+                if (transfer.isComplete() && transfer.isValid() && transfer.delivered.compareAndSet(false, true)) {
+                    println("Got data: ${ByteString(transfer.data)}")
+                    val newMessage = AdnlMessage(TL.decodeFromByteArray<tl.ton.adnl.AdnlMessage>(transfer.data))
+                    println("Got new reassembled message: $newMessage")
+                    handleMessage(newMessage)
+                }
             }
 
             is AdnlMessageCreateChannel -> {
-                channel = AdnlChannel.create(channelKey, message.key, message.date)
+                channel.update {
+                    AdnlChannel.create(channelKey, message.key, message.date)
+                }
                 sendPacket(null, AdnlMessageConfirmChannel(channelKey.publicKey(), message.key, message.date))
             }
 
             is AdnlMessageConfirmChannel -> {
                 if (message.peerKey != channelKey.publicKey()) {
-                    println("Bad peer key in confirm channel message: ${message.peerKey}, expected: ${channelKey.publicKey()}")
+                    println("$this Bad peer key in confirm channel message: ${message}, expected: ${channelKey.publicKey()}")
                     return
                 }
-                channel = AdnlChannel.create(channelKey, message.peerKey, message.date)
+                if (message.date != channel.value?.date) {
+                    channel.update {
+                        AdnlChannel.create(channelKey, message.key, message.date)
+                    }
+                    println("Setup channel: ${channel.value}")
+                }
             }
 
             is AdnlMessageAnswer -> {
@@ -138,9 +195,8 @@ abstract class AdnlConnection(
     }
 
     suspend fun sendMessage(message: AdnlMessage) {
-        val channel = channel
+        val channel = channel.value
         val createChannelMsg = if (channel == null) {
-            println("Create channel $localId -> $remoteId")
             val pubKey = channelKey.publicKey()
             AdnlMessageCreateChannel(
                 key = pubKey,
@@ -153,7 +209,7 @@ abstract class AdnlConnection(
         size += message.size
         if (size <= MAX_ADNL_MESSAGE) {
             if (createChannelMsg != null) {
-                println("Send with message: $createChannelMsg")
+                println("$this Send with message: $createChannelMsg")
                 sendPacket(channel, createChannelMsg, message)
             } else {
                 sendPacket(channel, message)
@@ -190,8 +246,9 @@ abstract class AdnlConnection(
         val data = TL.Boxed.encodeToByteArray(packet.tl())
         val encryptor = channel?.output?.encryptor ?: remotePeer.id.publicKey.createEncryptor()
         val encrypted = encryptor.encryptToByteArray(data)
-        println("send packet $localId -> $remoteId, seqno S${sendCounter.seqno}, R${recvCounter.seqno}")
-        transport.sendDatagram(remoteId, addressList.random(), ByteReadPacket(encrypted))
+        println("$this send packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} | $channel")
+        val destinationId = channel?.output?.id?.let { AdnlNodeIdShort(it) } ?: remoteId
+        transport.sendDatagram(destinationId, addressList.random(), ByteReadPacket(encrypted))
     }
 
     abstract suspend fun handleCustom(data: Source)
@@ -211,9 +268,14 @@ abstract class AdnlConnection(
             sendCounter.reinitDate = date
             sendCounter.seqno = 0
             recvCounter.seqno = 0
-            channel = null
+            channel.update {
+                null
+            }
         }
     }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun toString(): String = "[$remoteId@${hashCode().toHexString()}]"
 }
 
 fun CoroutineScope.AdnlConnection(
@@ -234,8 +296,12 @@ fun CoroutineScope.AdnlConnection(
         override val remotePeer: AdnlPeer = AdnlPeer(remoteKey)
 
         init {
-            transport.handle { _, _, datagram ->
-                handlePacket(datagram)
+            transport.handle { dst, address, datagram ->
+                try {
+                    handlePacket(dst, address, datagram)
+                } catch (e: Exception) {
+                    println("Failed process $this datagram: ${e.stackTraceToString()}")
+                }
             }
         }
 

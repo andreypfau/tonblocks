@@ -9,6 +9,7 @@ dependencies:
   - $libs.kotlinx.serialization.core
   - $libs.kotlinx.crypto.sha2
   - $libs.kotlinx.coroutines.core
+  - $libs.kotlinx.atomicfu
   - ../keys
   - ../adnl
   - ../tonapi-tl

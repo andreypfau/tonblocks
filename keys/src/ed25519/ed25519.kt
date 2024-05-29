@@ -26,9 +26,9 @@ object Ed25519 {
      * Ed25519 public key.
      */
     class PublicKey(
-        internal val key: io.github.andreypfau.curve25519.ed25519.Ed25519PublicKey
+        internal val key: Ed25519PublicKey
     ) : io.tonblocks.crypto.PublicKey {
-        constructor(key: ByteArray) : this(io.github.andreypfau.curve25519.ed25519.Ed25519PublicKey(key))
+        constructor(key: ByteArray) : this(Ed25519PublicKey(key))
 
         constructor(tl: tl.ton.PublicKey.Ed25519) : this(tl.key.toByteArray())
 
@@ -73,6 +73,8 @@ object Ed25519 {
 
         private val public = PublicKey(this.key.publicKey())
 
+        fun toByteArray(): ByteArray = key.seed()
+
         override fun publicKey(): PublicKey = public
 
         override fun createDecryptor() = DecryptorEd25519(key)
@@ -84,7 +86,7 @@ object Ed25519 {
 }
 
 class EncryptorEd25519 internal constructor(
-    private val remoteKey: io.github.andreypfau.curve25519.ed25519.Ed25519PublicKey
+    private val remoteKey: Ed25519PublicKey
 ) : Encryptor {
     override fun encryptToByteArray(source: ByteArray, startIndex: Int, endIndex: Int): ByteArray {
         val result = ByteArray(64 + endIndex - startIndex)
@@ -129,8 +131,7 @@ class DecryptorEd25519 internal constructor(
         startIndex: Int,
         endIndex: Int
     ) {
-        val pub =
-            io.github.andreypfau.curve25519.ed25519.Ed25519PublicKey(source.copyOfRange(startIndex, startIndex + 32))
+        val pub = Ed25519PublicKey(source.copyOfRange(startIndex, startIndex + 32))
         val shared = key.sharedKey(pub)
         val decryptor = DecryptorAes(shared)
         decryptor.decryptIntoByteArray(source, destination, destinationOffset, startIndex + 32, endIndex)

@@ -2,25 +2,14 @@ package io.tonblocks.dht
 
 import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.adnl.*
-import io.tonblocks.adnl.query.AdnlQueryId
 import io.tonblocks.adnl.transport.AdnlTransport
-import io.tonblocks.crypto.PublicKey
 import io.tonblocks.crypto.ed25519.Ed25519
-import io.tonblocks.crypto.ed25519.hash
 import io.tonblocks.kv.KeyValueRepository
+import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.datetime.Instant
-import kotlinx.io.Buffer
-import kotlinx.io.Source
-import kotlinx.io.bytestring.ByteString
-import tl.ton.adnl.AdnlNode
-import tl.ton.dht.*
-import tl.ton.dht.Dht
+import kotlinx.datetime.Clock
+import tl.ton.dht.DhtValueResult
+import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.measureTimedValue
@@ -28,7 +17,7 @@ import kotlin.time.measureTimedValue
 /**
  * TON Distributed Hash Table interface
  */
-interface Dht : AdnlAddressResolver {
+interface Dht : AdnlAddressResolver, CoroutineScope {
     /**
      * The Kademlia distance between nodes in the DHT
      */
@@ -55,76 +44,30 @@ interface Dht : AdnlAddressResolver {
     suspend fun set(value: DhtValue)
 }
 
-class DhtTlClient(
-    private val connection: AdnlConnection
-) : TlDht {
-    // TODO: fix DhtPing constructor id (expected: 0xCBEB3F18, actual: 0xCF6643AA)
-    override suspend fun ping(randomId: Long): DhtPong {
-        val buffer = Buffer()
-        TL.Boxed.encodeToSink(DhtPing.serializer(), buffer, DhtPing(randomId))
-        val answer = connection.sendQuery(buffer)
-        return TL.Boxed.decodeFromSource(DhtPong.serializer(), answer)
+class DhtImpl(
+    val localNode: AdnlLocalNode,
+    val transport: AdnlTransport,
+    val repository: KeyValueRepository<DhtKeyHash, DhtValue>,
+    override val k: Int = 10,
+    override val a: Int = 3,
+) : Dht {
+    private val job = Job()
+    override val coroutineContext: CoroutineContext = transport.coroutineContext + job
+
+    val keyId = localNode.key.hash()
+    val routingTable = KademliaRoutingTable<RemoteDhtNode>(
+        keyId,
+        k,
+        { it.node.id.shortId().publicKeyHash }
+    )
+
+    fun addNode(node: DhtNode): RemoteDhtNode {
+        val nodeNode = RemoteDhtNode(node)
+        return routingTable.add(nodeNode) ?: nodeNode
     }
 
-    // TODO: fix DhtStore constructor id (expected: 0x34934212)
-    override suspend fun store(value: tl.ton.dht.DhtValue): DhtStored {
-        val buffer = Buffer()
-        TL.Boxed.encodeToSink(TlDhtStore.serializer(), buffer, TlDhtStore(value))
-        val answer = connection.sendQuery(buffer)
-        return TL.Boxed.decodeFromSource(DhtStored.serializer(), answer)
-    }
-
-    // TODO: fix DhtFindNodes constructor id (expected: 0x7974A0BE)
-    override suspend fun findNode(key: ByteString, k: Int): TlDhtNodes {
-        val buffer = Buffer()
-        TL.Boxed.encodeToSink(TlDhtFindNode.serializer(), buffer, TlDhtFindNode(key, k))
-        val answer = connection.sendQuery(buffer)
-        return TL.Boxed.decodeFromSource(TlDhtNodes.serializer(), answer)
-    }
-
-    // TODO: fix DhtFindValue constructor id (expected: 0xAE4B6011)
-    override suspend fun findValue(key: ByteString, k: Int): TlDhtValueResult {
-        val buffer = Buffer()
-        TL.Boxed.encodeToSink(TlDhtFindValue.serializer(), buffer, TlDhtFindValue(key, k))
-        val answer = connection.sendQuery(buffer)
-        println(answer)
-        // TODO: fix deserialize polymorphic using TL.Boxed
-        return TL.decodeFromSource(TlDhtValueResult.serializer(), answer)
-    }
-
-    override suspend fun getSignedAddressList(): DhtNode {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun registerReverseConnection(node: tl.ton.PublicKey, ttl: Int, signature: ByteString): DhtStored {
-        TODO("Not yet implemented")
-    }
-
-    override suspend fun requestReversePing(
-        target: AdnlNode,
-        signature: ByteString,
-        client: ByteString,
-        k: Int
-    ): DhtReversePingResult {
-        TODO("Not yet implemented")
-    }
-}
-
-//class DhtImpl(
-//    val adnlLocalNode: AdnlLocalNode,
-//    val transport: AdnlTransport,
-//    val repository: KeyValueRepository<DhtKeyHash, DhtValue>,
-//    override val k: Int = 10,
-//    override val a: Int = 3
-//) : Dht {
-//    val keyId = adnlLocalNode.key.hash()
-//    val routingTable = KademliaRoutingTable<RemoteDhtNode>(
-//        keyId,
-//        k,
-//        { it.dhtNode.id.hash() }
-//    )
-//
-//    override suspend fun set(value: DhtValue) {
+    override suspend fun set(value: DhtValue) {
+        TODO()
 //        if (value.isExpired()) {
 //            return
 //        }
@@ -144,77 +87,120 @@ class DhtTlClient(
 //                    }.awaitAll()
 //                }
 //        }
-//    }
-//
-//    override suspend fun get(hash: DhtKeyHash): DhtValue? {
-//        val storedValue = repository.get(hash)
-//        if (storedValue != null) {
-//            if (storedValue.isExpired()) {
-//                repository.remove(hash)
-//            } else {
-//                return storedValue
-//            }
-//        }
-//
-//        return coroutineScope {
-//            val activeNodes = routingTable.nearest(hash, k)
-//
-//            val nodes = Channel<RemoteDhtNode>()
-//            val responses = Channel<Pair<DhtValue?, List<DhtNode>>>()
-//
-//            val semaphore = Semaphore(a)
-//            val findValueJob = launch {
-//                while (true) {
-//                    val node = nodes.receive()
-//                    launch {
-//                        semaphore.withPermit {
-//                            responses.send(node.sendFindValue(hash))
-//                        }
-//                    }
-//                }
-//            }
-//
-//            val visitedNodes = mutableSetOf<RemoteDhtNode>()
-//            visitedNodes.addAll(activeNodes)
-//            var foundValue: DhtValue? = null
-//            while (foundValue == null) {
-//                val (value, nextNodes) = responses.receive()
-//                if (value != null) {
-//                    foundValue = value
-//                }
-//                var addedNewNodes = false
-//                nextNodes.forEach {
-//                    val connectedNode = tryToAddNode(it)
-//                    if (connectedNode != null && visitedNodes.add(connectedNode)) {
-//                        addedNewNodes = true
-//                        nodes.send(connectedNode)
-//                    }
-//                }
-//                if (!addedNewNodes) {
-//                    break
-//                }
-//            }
-//            findValueJob.cancel()
-//            nodes.close()
-//            foundValue
-//        }
-//    }
-//
-//    private fun tryToAddNode(dhtNode: DhtNode): RemoteDhtNode? {
-//        return null
-//    }
-//
-//    override suspend fun resolveAddress(id: AdnlNodeIdShort): AdnlAddressList? {
-//        val dhtValue = get(DhtKey(id.publicKeyHash, "address", 0)) ?: return null
-//        return AdnlAddressList(
-//            TL.Boxed.decodeFromByteString(TlAdnlAddressList.serializer(), dhtValue.value)
-//        )
-//    }
-//
-//    inner class RemoteDhtNode(
-//        var dhtNode: DhtNode,
-//        var roundTripTime: Duration
-//    ) : Comparable<RemoteDhtNode> {
+    }
+
+    override suspend fun get(hash: DhtKeyHash): DhtValue? {
+        val storedValue = repository.get(hash)
+        if (storedValue != null) {
+            if (storedValue.isExpired()) {
+                repository.remove(hash)
+            } else {
+                return storedValue
+            }
+        }
+        val foundValue = CompletableDeferred<DhtValue?>()
+        val findJeb = launch {
+            val visitedNodes = HashSet<RemoteDhtNode>()
+            var newNodes = routingTable.nearest(hash, k)
+            while (true) {
+                newNodes = newNodes.filter { visitedNodes.add(it) }
+                if (newNodes.isEmpty()) {
+                    println("No more new nodes. Closing search.")
+                    break
+                }
+
+                newNodes = newNodes.map {
+                    async {
+                        println("${it.node.id.shortId()} query...")
+                        val answer = withTimeoutOrNull(10.seconds) {
+                            it.findValue(hash)
+                        }
+                        println("${it.node.id.shortId()} answer: $answer")
+                        if (answer != null) {
+                            val (value, nextNodes) = answer
+                            if (value != null) {
+                                println("FOUND VALUE: $value")
+                                foundValue.complete(value)
+                            }
+                            nextNodes
+                        } else {
+                            emptyList()
+                        }
+                    }
+                }.awaitAll().flatten().map {
+                    addNode(it)
+                }
+            }
+            foundValue.complete(null)
+        }
+        val value = foundValue.await()
+        findJeb.cancel()
+        return value
+    }
+
+    override suspend fun resolveAddress(id: AdnlNodeIdShort): AdnlAddressList? {
+        val dhtValue = get(DhtKey(id.publicKeyHash, "address", 0)) ?: return null
+        return AdnlAddressList(
+            TL.Boxed.decodeFromByteString(TlAdnlAddressList.serializer(), dhtValue.value)
+        )
+    }
+
+    inner class RemoteDhtNode(
+        val node: DhtNode,
+    ) : Comparable<RemoteDhtNode> {
+        private val latencyHistory = arrayOfNulls<Duration>(5)
+        private val latencyHistoryIndex = atomic(0)
+        private val client by lazy {
+            DhtTlClient(
+                AdnlConnection(
+                    transport,
+                    localNode.key,
+                    node.id.publicKey as Ed25519.PublicKey,
+                    node.addressList
+                )
+            )
+        }
+
+        override fun compareTo(other: RemoteDhtNode): Int {
+            return 0
+        }
+
+        suspend fun sendPing() {
+            val latency = withTimeoutOrNull(10.seconds) {
+                val ping = Clock.System.now().toEpochMilliseconds()
+                val (pong, latency) = measureTimedValue {
+                    client.ping(ping).randomId
+                }
+                check(ping == pong) {
+                    "Invalid PONG: $pong, expected: $ping"
+                }
+                latency
+            }
+            if (latency != null) {
+                latencyHistory[latencyHistoryIndex.getAndIncrement() % latencyHistory.size] = latency
+            }
+        }
+
+        suspend fun findValue(hash: DhtKeyHash): Pair<DhtValue?, List<DhtNode>> {
+            return when (val answer = client.findValue(hash, k)) {
+                is DhtValueResult.ValueFound -> DhtValue(answer.value) to emptyList()
+                is DhtValueResult.ValueNotFound -> null to answer.nodes.nodes.map { DhtNode(it) }
+            }
+        }
+
+        override fun toString(): String = "RemoteDhtNode(node=$node)"
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is RemoteDhtNode) return false
+            if (node.id != other.node.id) return false
+            return true
+        }
+
+        override fun hashCode(): Int = node.id.hashCode()
+    }
+
+
 //        val adnlConnection = object : AdnlConnection(transport, AdnlAddressList(dhtNode.addrList)) {
 //            override val localNode: AdnlLocalNode = adnlLocalNode
 //            override val remotePeer: AdnlPeer get() = AdnlPeer(PublicKey(dhtNode.id))
@@ -270,5 +256,4 @@ class DhtTlClient(
 //            val valueResult = TL.Boxed.decodeFromSource(DhtValueResult.serializer(), source)
 //            return Pair(dhtNode, valueResult)
 //        }
-//    }
-//}
+}
