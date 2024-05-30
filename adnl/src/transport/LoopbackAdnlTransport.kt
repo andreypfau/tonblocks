@@ -2,18 +2,17 @@ package io.tonblocks.adnl.transport
 
 import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.AdnlAddress
-import io.tonblocks.adnl.AdnlNodeIdShort
+import io.tonblocks.adnl.AdnlIdShort
 import kotlinx.coroutines.Dispatchers
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
-import transport.AdnlCategoryMask
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
 class LoopbackAdnlTransport : AdnlTransport {
     override val reinitDate: Instant = Clock.System.now()
-    private val allowedSources = mutableSetOf<AdnlNodeIdShort>()
-    private val allowedDestinations = mutableSetOf<AdnlNodeIdShort>()
+    private val allowedSources = mutableSetOf<AdnlIdShort>()
+    private val allowedDestinations = mutableSetOf<AdnlIdShort>()
     private val handlers = mutableListOf<AdnlTransportHandler>()
     override val coroutineContext: CoroutineContext = Dispatchers.Default
 
@@ -25,7 +24,7 @@ class LoopbackAdnlTransport : AdnlTransport {
             field = value
         }
 
-    fun addNodeId(id: AdnlNodeIdShort, allowSend: Boolean = true, allowReceive: Boolean = true) {
+    fun addNodeId(id: AdnlIdShort, allowSend: Boolean = true, allowReceive: Boolean = true) {
         if (allowSend) {
             allowedSources.add(id)
         } else {
@@ -43,8 +42,8 @@ class LoopbackAdnlTransport : AdnlTransport {
     }
 
     override suspend fun sendDatagram(
-        destination: AdnlNodeIdShort,
-        destinationAddress: AdnlAddress,
+        destination: AdnlIdShort,
+        address: AdnlAddress,
         datagram: ByteReadPacket
     ) {
         if (lossPortability > 0.0 && Random.nextDouble() < lossPortability) {
@@ -54,7 +53,7 @@ class LoopbackAdnlTransport : AdnlTransport {
             return
         }
         handlers.forEach {
-            it.onReceiveDatagram(destination, destinationAddress, datagram)
+            it.onReceiveDatagram(destination, address, datagram)
         }
     }
 }

@@ -14,6 +14,10 @@ annotation class TLCombinatorId(
 
 @SerialInfo
 @Target(AnnotationTarget.PROPERTY)
+annotation class TlBoxed
+
+@SerialInfo
+@Target(AnnotationTarget.PROPERTY)
 annotation class TLConditional(
     val field: String,
     val value: Int

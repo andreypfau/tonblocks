@@ -2,10 +2,9 @@ package io.tonblocks.adnl.transport
 
 import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.AdnlAddress
-import io.tonblocks.adnl.AdnlNodeIdShort
+import io.tonblocks.adnl.AdnlIdShort
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.datetime.Instant
-import transport.AdnlCategoryMask
 
 interface AdnlTransport : CoroutineScope {
     val reinitDate: Instant
@@ -14,15 +13,15 @@ interface AdnlTransport : CoroutineScope {
     fun handle(handler: AdnlTransportHandler)
 
     suspend fun sendDatagram(
-        destination: AdnlNodeIdShort,
-        destinationAddress: AdnlAddress,
+        destination: AdnlIdShort,
+        address: AdnlAddress,
         datagram: ByteReadPacket
     )
 }
 
 fun interface AdnlTransportHandler {
     suspend fun onReceiveDatagram(
-        destination: AdnlNodeIdShort,
+        destination: AdnlIdShort,
         address: AdnlAddress,
         datagram: ByteReadPacket
     )

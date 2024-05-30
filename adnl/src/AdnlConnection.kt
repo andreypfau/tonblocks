@@ -7,14 +7,12 @@ import io.tonblocks.adnl.channel.AdnlChannel
 import io.tonblocks.adnl.message.*
 import io.tonblocks.adnl.query.AdnlQueryId
 import io.tonblocks.adnl.transport.AdnlTransport
-import io.tonblocks.crypto.Decryptor
 import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.update
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.job
+import kotlinx.coroutines.Job
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.io.Buffer
@@ -23,7 +21,6 @@ import kotlinx.io.bytestring.ByteString
 import kotlinx.io.readByteArray
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
-import tl.ton.adnl.AdnlPacketContents
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
@@ -35,15 +32,15 @@ const val MAX_ADNL_MESSAGE = 1024
 abstract class AdnlConnection(
     val transport: AdnlTransport,
     addressList: AdnlAddressList,
+    coroutineContext: CoroutineContext
 ) : CoroutineScope {
-    override val coroutineContext: CoroutineContext = SupervisorJob(transport.coroutineContext.job)
+    private val job = Job()
+    override val coroutineContext: CoroutineContext = coroutineContext + job
 
     abstract val localNode: AdnlLocalNode
     abstract val remotePeer: AdnlPeer
     private val channelKey: Ed25519.PrivateKey = Ed25519.random()
 
-    val localId get() = localNode.id.shortId()
-    val remoteId get() = remotePeer.id.shortId()
     val recvCounter = AdnlPacketCounter(transport.reinitDate)
     val sendCounter = AdnlPacketCounter()
     private var addressList = addressList
@@ -56,75 +53,33 @@ abstract class AdnlConnection(
 
     private val queries = mutableMapOf<AdnlQueryId, CompletableDeferred<Buffer>>()
 
-    internal suspend fun handlePacket(dest: AdnlNodeIdShort, address: AdnlAddress, data: ByteReadPacket) {
-        if (data.remaining < 32) {
-            return
-        }
-        val channel = channel.value
-        val decryptor: Decryptor
-        if (channel != null) {
-            println("$this w  channel checking $data - $dest | ${channel.input.id}")
-            if (channel.input.id != dest.publicKeyHash) {
-                return
-            }
-            decryptor = channel.input.decryptor
-        } else {
-            println("$this w/o channel checking $data - $dest | $localId")
-            if (localId != dest) {
-                return
-            }
-            decryptor = localNode.key.createDecryptor()
-        }
-
-        println("$this Handling packet (${data} bytes) for $localId decryptor:$decryptor ${if (channel != null) "using channel: $channel" else ""}")
-        val readData = data.copy().readBytes()
-        var decrypted: ByteArray
-        try {
-            decrypted = decryptor.decryptToByteArray(readData)
-        } catch (e: Exception) {
-            return
-        }
-        data.discard(readData.size)
-
-        val packet = AdnlPacket(tl = TL.Boxed.decodeFromByteArray<AdnlPacketContents>(decrypted))
-
-        if (channel == null) {
-            if (!packet.checkSignature()) {
-                println("$remoteId: bad ADNL packet signature")
-                return
-            }
-        }
-
+    suspend fun handlePacket(packet: AdnlPacket) {
         val seqno = packet.seqno
         if (seqno != null) {
             recvCounter.seqno = seqno
-            println("$this recv packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} : ${packet.tl()}")
+//            println("$this recv packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} : ${packet}")
         }
-
         val confirmSeqno = packet.confirmSeqno
         if (confirmSeqno != null) {
             val lastSeqno = sendCounter.seqno
             if (confirmSeqno > lastSeqno) {
-                println("$remoteId: too new ADNL packet seqno confirmation: $confirmSeqno, expected <= $lastSeqno")
+                println("$this too new ADNL packet seqno confirmation: $confirmSeqno, expected <= $lastSeqno")
                 return
             }
         }
-
         if (packet.messages.isEmpty()) {
-            println("$remoteId: empty ADNL packet")
+            println("$this empty ADNL packet: ${packet.tl()}")
             return
         }
 
         packet.messages.forEach { message ->
             handleMessage(message)
         }
-
-        return
     }
 
     @OptIn(ExperimentalStdlibApi::class)
     suspend fun handleMessage(message: AdnlMessage) {
-        println("Process message: $message")
+//        println("$this Process message: $message")
         when (message) {
             is AdnlMessagePart -> {
                 val transferId = message.hash
@@ -136,19 +91,19 @@ abstract class AdnlConnection(
                     )
                 }
                 if (transfer.update(message)) {
-                    println("$this added part: ${message.offset}@${message.hash}")
+//                    println("$this added part: ${message.offset}@${message.hash}")
                 }
                 if (transfer.isComplete() && transfer.isValid() && transfer.delivered.compareAndSet(false, true)) {
-                    println("Got data: ${ByteString(transfer.data)}")
+//                    println("$this Got data: ${ByteString(transfer.data)}")
                     val newMessage = AdnlMessage(TL.decodeFromByteArray<tl.ton.adnl.AdnlMessage>(transfer.data))
-                    println("Got new reassembled message: $newMessage")
+//                    println("$this Got new reassembled message: $newMessage")
                     handleMessage(newMessage)
                 }
             }
 
             is AdnlMessageCreateChannel -> {
                 channel.update {
-                    AdnlChannel.create(channelKey, message.key, message.date)
+                    AdnlChannel.create(this, channelKey, message.key, message.date)
                 }
                 sendPacket(null, AdnlMessageConfirmChannel(channelKey.publicKey(), message.key, message.date))
             }
@@ -160,9 +115,9 @@ abstract class AdnlConnection(
                 }
                 if (message.date != channel.value?.date) {
                     channel.update {
-                        AdnlChannel.create(channelKey, message.key, message.date)
+                        AdnlChannel.create(this, channelKey, message.key, message.date)
                     }
-                    println("Setup channel: ${channel.value}")
+//                    println("$this Setup channel: ${channel.value}")
                 }
             }
 
@@ -209,7 +164,7 @@ abstract class AdnlConnection(
         size += message.size
         if (size <= MAX_ADNL_MESSAGE) {
             if (createChannelMsg != null) {
-                println("$this Send with message: $createChannelMsg")
+//                println("$this Send with message: $createChannelMsg")
                 sendPacket(channel, createChannelMsg, message)
             } else {
                 sendPacket(channel, message)
@@ -246,8 +201,8 @@ abstract class AdnlConnection(
         val data = TL.Boxed.encodeToByteArray(packet.tl())
         val encryptor = channel?.output?.encryptor ?: remotePeer.id.publicKey.createEncryptor()
         val encrypted = encryptor.encryptToByteArray(data)
-        println("$this send packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} | $channel")
-        val destinationId = channel?.output?.id?.let { AdnlNodeIdShort(it) } ?: remoteId
+//        println("$this send packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} | $channel")
+        val destinationId = channel?.output?.id ?: remotePeer.id.shortId()
         transport.sendDatagram(destinationId, addressList.random(), ByteReadPacket(encrypted))
     }
 
@@ -274,43 +229,5 @@ abstract class AdnlConnection(
         }
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
-    override fun toString(): String = "[$remoteId@${hashCode().toHexString()}]"
-}
-
-fun CoroutineScope.AdnlConnection(
-    transport: AdnlTransport,
-    localKey: Ed25519.PrivateKey,
-    remoteKey: Ed25519.PublicKey,
-    addressList: AdnlAddressList,
-    handleCustom: suspend (data: Source) -> Unit = {},
-    handleQuery: suspend (queryId: AdnlQueryId, data: Source) -> Unit = { _, _ -> },
-): AdnlConnection {
-    return object : AdnlConnection(transport, addressList) {
-        override val localNode: AdnlLocalNode = AdnlLocalNode(
-            localKey, AdnlAddressList(
-                reinitDate = transport.reinitDate,
-                version = Clock.System.now().epochSeconds.toInt()
-            )
-        )
-        override val remotePeer: AdnlPeer = AdnlPeer(remoteKey)
-
-        init {
-            transport.handle { dst, address, datagram ->
-                try {
-                    handlePacket(dst, address, datagram)
-                } catch (e: Exception) {
-                    println("Failed process $this datagram: ${e.stackTraceToString()}")
-                }
-            }
-        }
-
-        override suspend fun handleCustom(data: Source) {
-            handleCustom(data)
-        }
-
-        override suspend fun handleQuery(queryId: AdnlQueryId, data: Source) {
-            handleQuery(queryId, data)
-        }
-    }
+    override fun toString(): String = "[->${remotePeer.id.shortId()}]"
 }

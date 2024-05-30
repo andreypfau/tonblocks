@@ -47,7 +47,7 @@ object Ed25519 {
         }
 
         @OptIn(ExperimentalStdlibApi::class)
-        override fun toString(): String = "Ed25519.PublicKey(${key.toByteArray().toHexString()})"
+        override fun toString(): String = key.toByteArray().toHexString()
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true

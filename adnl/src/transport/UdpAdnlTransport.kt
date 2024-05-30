@@ -4,7 +4,7 @@ import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.AdnlAddress
-import io.tonblocks.adnl.AdnlNodeIdShort
+import io.tonblocks.adnl.AdnlIdShort
 import io.tonblocks.adnl.toAdnlAddress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,7 +35,7 @@ class UdpAdnlTransport(
             while (true) {
                 val datagram = receive()
                 val address = (datagram.address as InetSocketAddress).toAdnlAddress()
-                val destination = AdnlNodeIdShort(ByteString(*datagram.packet.readBytes(32)))
+                val destination = AdnlIdShort(ByteString(*datagram.packet.readBytes(32)))
                 handlers.forEach {
                     launch {
                         it.onReceiveDatagram(
@@ -54,11 +54,11 @@ class UdpAdnlTransport(
     }
 
     override suspend fun sendDatagram(
-        destination: AdnlNodeIdShort,
-        destinationAddress: AdnlAddress,
+        destination: AdnlIdShort,
+        address: AdnlAddress,
         datagram: ByteReadPacket
     ) {
-        val udpAddress = (destinationAddress as? AdnlAddress.Udp)?.let {
+        val udpAddress = (address as? AdnlAddress.Udp)?.let {
             InetSocketAddress(it.address, it.port)
         } ?: return
         val udpDatagram = Datagram(

@@ -2,11 +2,10 @@ package io.tonblocks.adnl
 
 import io.tonblocks.crypto.PublicKey
 
-
 class AdnlPeer(
-    val id: AdnlNodeIdFull,
+    val id: AdnlIdFull,
 ) {
-    constructor(id: PublicKey) : this(AdnlNodeIdFull(id))
+    constructor(id: PublicKey) : this(AdnlIdFull(id))
 
     override fun toString(): String = "AdnlPeer($id)"
 

@@ -4,14 +4,14 @@ import io.ktor.utils.io.core.*
 
 interface AdnlSender {
     suspend fun sendMessage(
-        src: AdnlNodeIdShort,
-        dst: AdnlNodeIdShort,
+        src: AdnlIdShort,
+        dst: AdnlIdShort,
         message: ByteReadPacket
     )
 
     suspend fun sendQuery(
-        src: AdnlNodeIdShort,
-        dst: AdnlNodeIdShort,
+        src: AdnlIdShort,
+        dst: AdnlIdShort,
         query: ByteReadPacket,
     ): ByteReadPacket
 }

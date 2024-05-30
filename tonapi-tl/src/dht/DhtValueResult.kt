@@ -3,10 +3,11 @@
 package tl.ton.dht
 
 import io.github.andreypfau.tl.serialization.TLCombinatorId
-import kotlin.jvm.JvmName
+import io.github.andreypfau.tl.serialization.TlBoxed
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonClassDiscriminator
+import kotlin.jvm.JvmName
 
 @Serializable
 @JsonClassDiscriminator("@type")
@@ -26,6 +27,7 @@ public sealed interface DhtValueResult {
     @TLCombinatorId(0xE40CF774)
     public data class ValueFound(
         @get:JvmName("value")
+        @TlBoxed
         public val `value`: DhtValue,
     ) : DhtValueResult {
         public companion object

@@ -164,12 +164,20 @@ class TLDecoder(
     @ExperimentalSerializationApi
     override fun decodeSequentially(): Boolean = true
 
+    @OptIn(ExperimentalStdlibApi::class)
     override fun <T> decodeSerializableElement(
         descriptor: SerialDescriptor,
         index: Int,
         deserializer: DeserializationStrategy<T>,
         previousValue: T?
     ): T {
+        if (descriptor.isTLBoxed(index)) {
+            val expected = deserializer.descriptor.getTlCombinatorId()
+            val actual = decodeInt()
+            check(expected == actual) {
+                "Invalid boxed ID, expected: $expected (${expected.toHexString()}), actual: $actual (${actual.toHexString()})"
+            }
+        }
 //        println("decode ${descriptor.serialName}[$index] - ${deserializer.descriptor.serialName} - ${descriptor.getElementName(index)}")
         when(deserializer) {
             Base64ByteStringSerializer -> {
@@ -257,5 +265,16 @@ class TLDecoder(
             }
         }
         return -1
+    }
+
+    private fun SerialDescriptor.isTLBoxed(index: Int): Boolean {
+        val annotations = getElementAnnotations(index)
+        for (k in annotations.indices) {
+            val annotation = annotations[k]
+            if (annotation is TlBoxed) {
+                return true
+            }
+        }
+        return false
     }
 }

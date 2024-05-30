@@ -2,10 +2,10 @@ package io.tonblocks.adnl
 
 interface AdnlPeerTable {
     fun addPeer(
-        localId: AdnlNodeIdShort,
-        id: AdnlNodeIdFull,
+        localId: AdnlIdShort,
+        id: AdnlIdFull,
         addressList: AdnlAddressList
     ): AdnlPeer
 
-    fun getPeer(peerId: AdnlNodeIdShort): AdnlPeer
+    fun getPeer(peerId: AdnlIdShort): AdnlPeer
 }

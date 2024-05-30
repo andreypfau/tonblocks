@@ -10,12 +10,12 @@ fun AdnlAddressList.tl(): TlAdnlAddressList = TlAdnlAddressList(
     version = version,
     reinitDate = reinitDate.epochSeconds.toInt(),
     priority = priority,
-    expireAt = expireAt.epochSeconds.toInt()
+    expireAt = expireAt?.epochSeconds?.toInt() ?: 0
 )
 
 fun AdnlAddressList(tl: TlAdnlAddressList): AdnlAddressList = AdnlAddressList(
     reinitDate = Instant.fromEpochSeconds(tl.reinitDate.toLong()),
-    expireAt = Instant.fromEpochSeconds(tl.expireAt.toLong()),
+    expireAt = if (tl.expireAt == 0) null else Instant.fromEpochSeconds(tl.expireAt.toLong()),
     priority = tl.priority,
     addresses = tl.addrs.map { AdnlAddress(it) }
 )

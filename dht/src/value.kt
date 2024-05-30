@@ -1,11 +1,12 @@
 package io.tonblocks.dht
 
 import io.tonblocks.adnl.AdnlAddressList
-import io.tonblocks.adnl.AdnlNodeIdFull
+import io.tonblocks.adnl.AdnlIdFull
 import io.tonblocks.crypto.PublicKey
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
+import kotlinx.io.bytestring.toHexString
 
 data class DhtValue(
     val description: DhtKeyDescription,
@@ -17,15 +18,22 @@ data class DhtValue(
 }
 
 data class DhtNode(
-    val id: AdnlNodeIdFull,
-    val version: Int,
+    val id: AdnlIdFull,
     val addressList: AdnlAddressList,
-    val signature: ByteString
+    val version: Int = 0,
+    val signature: ByteString = ByteString()
 ) {
     constructor(
-        id: PublicKey,
-        version: Int,
+        publicKey: PublicKey,
         addressList: AdnlAddressList,
-        signature: ByteString
-    ) : this(AdnlNodeIdFull(id), version, addressList, signature)
+        version: Int = 0,
+        signature: ByteString = ByteString()
+    ) : this(AdnlIdFull(publicKey), addressList, version, signature)
+
+    val publicKey: PublicKey get() = id.publicKey
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun toString(): String {
+        return "DhtNode(publicKey=$publicKey, addressList=$addressList, version=$version, signature=${signature.toHexString()})"
+    }
 }

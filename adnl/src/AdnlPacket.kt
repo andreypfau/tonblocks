@@ -1,10 +1,10 @@
 package io.tonblocks.adnl
 
 import io.github.andreypfau.tl.serialization.TL
-import kotlinx.datetime.Instant
-import kotlinx.io.bytestring.ByteString
 import io.tonblocks.adnl.message.AdnlMessage
 import io.tonblocks.crypto.ed25519.Ed25519
+import kotlinx.datetime.Instant
+import kotlinx.io.bytestring.ByteString
 import tl.ton.adnl.AdnlPacketContents
 import kotlin.random.Random
 
@@ -13,8 +13,8 @@ class AdnlPacket internal constructor(
     var rand2: ByteArray = Random.nextBytes(Random.nextInt(7, 15)),
     flags: Int = 0,
     signature: ByteArray? = null,
-    sourceShort: AdnlNodeIdShort? = null,
-    source: AdnlNodeIdFull? = null,
+    sourceShort: AdnlIdShort? = null,
+    source: AdnlIdFull? = null,
     addressList: AdnlAddressList? = null,
     priorityAddressList: AdnlAddressList? = null,
     seqno: Long? = null,
@@ -31,8 +31,8 @@ class AdnlPacket internal constructor(
         rand2 = tl.rand2.toByteArray(),
         flags = tl.flags,
         signature = tl.signature?.toByteArray() ?: ByteArray(0),
-        sourceShort = tl.fromShort?.let { AdnlNodeIdShort(it) },
-        source = tl.from?.let { AdnlNodeIdFull(it) },
+        sourceShort = tl.fromShort?.let { AdnlIdShort(it) },
+        source = tl.from?.let { AdnlIdFull(it) },
         addressList = tl.address?.let { AdnlAddressList(it) },
         priorityAddressList = tl.address?.let { AdnlAddressList(it) },
         seqno = tl.seqno,
@@ -129,7 +129,7 @@ class AdnlPacket internal constructor(
             }
         }
 
-    var sourceShort: AdnlNodeIdShort? = sourceShort
+    var sourceShort: AdnlIdShort? = sourceShort
         set(value) {
             field = value
             flags = if (value != null) {
@@ -139,7 +139,7 @@ class AdnlPacket internal constructor(
             }
         }
 
-    var source: AdnlNodeIdFull? = source
+    var source: AdnlIdFull? = source
         set(value) {
             field = value
             flags = if (value != null) {
@@ -202,7 +202,7 @@ class AdnlPacket internal constructor(
 
     fun sign(key: Ed25519.PrivateKey) {
         signature = null
-        source = AdnlNodeIdFull(key.publicKey())
+        source = AdnlIdFull(key.publicKey())
         val raw = TL.Boxed.encodeToByteArray(AdnlPacketContents.serializer(), tl())
         signature = key.createDecryptor().sign(raw)
     }
@@ -217,6 +217,40 @@ class AdnlPacket internal constructor(
 //        return source?.publicKey?.createEncryptor()?.checkSignature(raw, signature) ?: false
         return true
     }
+
+    override fun toString(): String {
+        return buildString {
+            append("AdnlPacket(")
+            append("seqno=")
+            append(seqno)
+            append(", confirmSeqno=")
+            append(confirmSeqno)
+            append(", messages=")
+            append(_messages)
+            append(", addressList=")
+            append(addressList)
+            append(", priorityAddressList=")
+            append(priorityAddressList)
+            append(", recvAddressListVersion=")
+            append(recvAddressListVersion)
+            append(", recvPriorityAddressListVersion=")
+            append(recvPriorityAddressListVersion)
+            append(", flags=")
+            append(flags)
+            append(", reinitDate=")
+            append(reinitDate)
+            append(", dstReinitDate=")
+            append(dstReinitDate)
+            append(", sourceShort=")
+            append(sourceShort)
+            append(", source=")
+            append(source)
+            append(", signature=")
+            append(signature?.contentToString())
+            append(")")
+        }
+    }
+
 
     companion object {
         const val FLAG_FROM = 0x1

@@ -1,19 +1,20 @@
-import io.github.andreypfau.kotlinx.crypto.sha256
 import io.ktor.network.sockets.*
 import io.ktor.util.*
 import io.ktor.utils.io.core.*
-import kotlinx.coroutines.runBlocking
+import io.tonblocks.adnl.AdnlAddress
+import io.tonblocks.adnl.AdnlAddressList
+import io.tonblocks.adnl.AdnlLocalNode
+import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.datetime.Clock
 import kotlinx.io.Source
 import org.ton.adnl.*
 import org.ton.adnl.query.AdnlQueryId
 import org.ton.adnl.transport.LoopbackAdnlTransport
-import org.ton.adnl.transport.UdpAdnlTransport
-import org.ton.ed25519.Ed25519
 import kotlin.random.Random
 import kotlin.test.Test
 
 class AdnlConnectionTest {
+
     @Test
     fun packetTest() {
         val transport = LoopbackAdnlTransport()

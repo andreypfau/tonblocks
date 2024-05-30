@@ -22,7 +22,6 @@ sealed class AdnlAddress {
         companion object {
             @JvmStatic
             fun addressToInt(address: String): Int {
-                println("address: $address")
                 return when (address) {
                     "localhost" -> addressToInt("127.0.0.1")
                     else -> address.split('.').fold(0) { acc, it -> (acc shl 8) or it.toInt() }

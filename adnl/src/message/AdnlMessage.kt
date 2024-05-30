@@ -1,9 +1,10 @@
 package io.tonblocks.adnl.message
 
-import kotlinx.datetime.Instant
-import kotlinx.io.bytestring.ByteString
 import io.tonblocks.adnl.query.AdnlQueryId
 import io.tonblocks.crypto.ed25519.Ed25519
+import kotlinx.datetime.Instant
+import kotlinx.io.bytestring.ByteString
+import kotlinx.io.bytestring.toHexString
 
 sealed interface AdnlMessage {
     val size: Int
@@ -57,7 +58,9 @@ class AdnlMessageCreateChannel(
         date = date.epochSeconds.toInt()
     )
 
-    override fun toString(): String = tl().toString()
+    override fun toString(): String {
+        return "AdnlMessageCreateChannel(key=$key, date=$date)"
+    }
 }
 
 class AdnlMessageConfirmChannel(
@@ -75,7 +78,7 @@ class AdnlMessageConfirmChannel(
         )
     }
 
-    override fun toString(): String = tl().toString()
+    override fun toString(): String = "AdnlMessageConfirmChannel(key=$key, peerKey=$peerKey, date=$date)"
 }
 
 class AdnlMessageCustom(
@@ -119,6 +122,11 @@ class AdnlMessageQuery(
         queryId = queryId,
         query = ByteString(*data)
     )
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun toString(): String {
+        return "AdnlMessageQuery(queryId=${queryId.toHexString()}, data=${data.toHexString()})"
+    }
 }
 
 class AdnlMessageAnswer(
@@ -131,6 +139,10 @@ class AdnlMessageAnswer(
         queryId = queryId,
         answer = ByteString(*answer)
     )
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun toString(): String =
+        "AdnlMessageAnswer(queryId=${queryId.toHexString()}, answer=${answer.toHexString()})"
 }
 
 class AdnlMessagePart(
@@ -149,4 +161,8 @@ class AdnlMessagePart(
             data = ByteString(*data)
         )
     }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override fun toString(): String =
+        "AdnlMessagePart(hash=$hash, totalSize=$totalSize, offset=$offset, data=${data.toHexString()})"
 }
