@@ -1,5 +1,7 @@
 package io.tonblocks.dht
 
+import io.github.andreypfau.kotlinx.crypto.sha256
+import io.github.andreypfau.tl.serialization.TL
 import io.ktor.util.*
 import io.tonblocks.adnl.AdnlAddress
 import io.tonblocks.adnl.AdnlAddressList
@@ -7,13 +9,14 @@ import io.tonblocks.adnl.AdnlLocalNode
 import io.tonblocks.adnl.transport.UdpAdnlTransport
 import io.tonblocks.crypto.ed25519.Ed25519
 import io.tonblocks.kv.MapKeyValueRepository
+import io.tonblocks.overlay.OverlayIdFull
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.io.bytestring.ByteString
+import tl.ton.tonnode.TonNodeShardPublicOverlayId
 import kotlin.random.Random
 import kotlin.test.Test
-import kotlin.time.measureTime
 import kotlin.time.measureTimedValue
 
 class DhtClientTest {
@@ -21,6 +24,16 @@ class DhtClientTest {
         transport = UdpAdnlTransport(3000),
         key = Ed25519.random()
     )
+    val TON_MAINNET_MASTERCHAIN =
+        masterchainOverlayId("XplPz01CXAps5qeSWUtxcyBfdAo5zVb1N979KLSKD24=".decodeBase64Bytes())
+    val TON_TESTNET_MASTERCHAIN =
+        masterchainOverlayId("Z+IKwYS54DmmJmesw/nAD5DzWadnOCMzee+kdgSYDOg=".decodeBase64Bytes())
+    val EVERSCALE_MAINNET_MASTERCHAIN =
+        masterchainOverlayId("0nC4eylStbp9qnCq8KjDYb789NjS25L5ZA1UQwcIOOQ=".decodeBase64Bytes())
+    val EVERSCALE_TESTNET_MASTERCHAIN =
+        masterchainOverlayId("2Q2lg3IWbHJo9q2YXv1j2lwsmBtTuiT/djB66WEUd3c=".decodeBase64Bytes())
+    val VENOM_MAINNET_MASTERCHAIN =
+        masterchainOverlayId("ywj7H75tJ3PgbEeX+UNP3j0iR1x9imIIJJuQgrlCr8s=".decodeBase64Bytes())
 
     @OptIn(ExperimentalStdlibApi::class)
     @Test
@@ -61,22 +74,27 @@ class DhtClientTest {
         )
 
         dht.addNode(remoteNode)
-        repeat(10000) {
-            val time = measureTime {
-                dht.findNodes()
-            }
-            println("Populated table: $time")
-            println("Table size: ${dht.routingTable.size}")
-            dht.routingTable.buckets.forEachIndexed { bucketIndex, bucket ->
-                if (bucket.isNotEmpty()) {
-                    println("Bucket: $bucketIndex")
-                    bucket.forEachIndexed { index, remoteDhtNode ->
-                        println("  ${index}. ${remoteDhtNode.node.id.shortId()} ${remoteDhtNode.averageLatency} | lastPinged: ${remoteDhtNode.lastPingedAt}")
-                    }
-                }
-            }
-            println("\n\n\n")
-        }
+//        repeat(3) {
+//            val time = measureTime {
+//                dht.findNodes()
+//            }
+//            println("Populated table: $time")
+//            println("Table size: ${dht.routingTable.size}")
+////            dht.routingTable.buckets.forEachIndexed { bucketIndex, bucket ->
+////                if (bucket.isNotEmpty()) {
+////                    println("Bucket: $bucketIndex")
+////                    bucket.forEachIndexed { index, remoteDhtNode ->
+////                        println("  ${index}. ${remoteDhtNode.node.id.shortId()} ${remoteDhtNode.averageLatency} | lastPinged: ${remoteDhtNode.lastPingedAt}")
+////                    }
+////                }
+////            }
+////            println("\n\n\n")
+//        }
+        println("ton mainnet: ${dht.resolveNodes(TON_MAINNET_MASTERCHAIN)}")
+        println("ton testnet: ${dht.resolveNodes(TON_TESTNET_MASTERCHAIN)}")
+        println("ever mainnet: ${dht.resolveNodes(EVERSCALE_MAINNET_MASTERCHAIN)}")
+        println("ever testnet: ${dht.resolveNodes(EVERSCALE_TESTNET_MASTERCHAIN)}")
+        println("venom mainnet: ${dht.resolveNodes(VENOM_MAINNET_MASTERCHAIN)}")
     }
 
     @Test
@@ -123,5 +141,19 @@ class DhtClientTest {
         }
         println("list: $list, result: $result")
         return result
+    }
+
+    private fun masterchainOverlayId(zeroStateFileHash: ByteArray): OverlayIdFull {
+        return OverlayIdFull(
+            sha256(
+                TL.Boxed.encodeToByteArray(
+                    TonNodeShardPublicOverlayId.serializer(), TonNodeShardPublicOverlayId(
+                        workchain = -1,
+                        shard = (1uL shl 63).toLong(),
+                        zeroStateFileHash = ByteString(zeroStateFileHash)
+                    )
+                )
+            )
+        )
     }
 }

@@ -38,7 +38,6 @@ class DataCell(
 ) : Cell {
     override suspend fun load() = this
 
-
     fun encodeIntoByteArray(
         destination: ByteArray,
         destinationOffset: Int = 0

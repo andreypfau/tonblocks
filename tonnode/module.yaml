@@ -1,0 +1,17 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+    - linuxX64
+
+dependencies:
+  - ../adnl
+  - ../overlay
+  - ../keys
+  - ../tonapi-tl
+  - ../tl-serialization
+  - $libs.kotlinx.io.core
+  - $libs.kotlinx.coroutines.core
+  - $libs.kotlinx.crypto.sha2
+  - $libs.kotlinx.serialization.core

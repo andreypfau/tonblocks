@@ -12,6 +12,7 @@ dependencies:
   - $libs.kotlinx.atomicfu
   - ../keys
   - ../adnl
+  - ../overlay
   - ../tonapi-tl
   - ../tl-serialization
   - ../kv

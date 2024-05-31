@@ -2,7 +2,11 @@ package io.tonblocks.dht
 
 import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.adnl.*
+import io.tonblocks.crypto.ShortId
 import io.tonblocks.kv.KeyValueRepository
+import io.tonblocks.overlay.OverlayIdShort
+import io.tonblocks.overlay.OverlayNode
+import io.tonblocks.overlay.OverlayNodesResolver
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.channelFlow
@@ -12,6 +16,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
 import tl.ton.dht.DhtValueResult
+import tl.ton.overlay.OverlayNodes
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 import kotlin.random.nextInt
@@ -24,7 +29,7 @@ import kotlin.time.measureTimedValue
 /**
  * TON Distributed Hash Table interface
  */
-interface Dht : AdnlAddressResolver, CoroutineScope {
+interface Dht : AdnlAddressResolver, OverlayNodesResolver, CoroutineScope {
     /**
      * The Kademlia distance between nodes in the DHT
      */
@@ -137,11 +142,18 @@ class DhtImpl(
         )
     }
 
-    override suspend fun resolveAddress(id: AdnlIdShort): AdnlAddressList? {
-        val dhtValue = get(DhtKey(id.publicKeyHash, "address", 0)) ?: return null
+    override suspend fun resolveAddress(id: ShortId<AdnlIdShort>): AdnlAddressList? {
+        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "address", 0)) ?: return null
         return AdnlAddressList(
             TL.Boxed.decodeFromByteString(TlAdnlAddressList.serializer(), dhtValue.value)
         )
+    }
+
+    override suspend fun resolveNodes(id: ShortId<OverlayIdShort>): List<OverlayNode>? {
+        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "nodes", 0)) ?: return null
+        return TL.Boxed.decodeFromByteString(OverlayNodes.serializer(), dhtValue.value).nodes.map {
+            OverlayNode(it)
+        }
     }
 
     private suspend fun <T : Any> beamSearch(

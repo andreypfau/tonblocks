@@ -2,10 +2,12 @@ package io.tonblocks.crypto
 
 import io.github.andreypfau.kotlinx.crypto.sha256
 import io.github.andreypfau.tl.serialization.TL
+import io.tonblocks.crypto.aes.PrivateKeyAes
+import io.tonblocks.crypto.aes.PublicKeyAes
+import io.tonblocks.crypto.ed25519.Ed25519
+import io.tonblocks.crypto.overlay.OverlayPublicKey
 import kotlinx.io.bytestring.ByteString
 import kotlinx.serialization.encodeToByteArray
-import io.tonblocks.crypto.aes.*
-import io.tonblocks.crypto.ed25519.*
 
 typealias PublicKeyHash = ByteString
 
@@ -31,7 +33,7 @@ public fun PublicKey(tl: tl.ton.PublicKey): PublicKey = when (tl) {
     is tl.ton.PublicKey.Ed25519 -> Ed25519.PublicKey(tl)
     is tl.ton.PublicKey.Aes -> PublicKeyAes(tl)
     is tl.ton.PublicKey.Unenc -> TODO()
-    is tl.ton.PublicKey.Overlay -> TODO()
+    is tl.ton.PublicKey.Overlay -> OverlayPublicKey(tl)
 }
 
 public fun PrivateKey(tl: tl.ton.PrivateKey): PrivateKey = when (tl) {

@@ -1,39 +1,41 @@
 package io.tonblocks.adnl
 
-import io.ktor.util.*
 import io.tonblocks.crypto.PublicKey
 import io.tonblocks.crypto.PublicKeyHash
+import io.tonblocks.crypto.ShortId
 import kotlinx.io.bytestring.toHexString
-import tl.ton.adnl.id.AdnlIdShort
 
 data class AdnlIdShort(
     val publicKeyHash: PublicKeyHash
-) : Comparable<io.tonblocks.adnl.AdnlIdShort> {
-    constructor(tl: AdnlIdShort) : this(tl.id)
+) : ShortId<AdnlIdShort> {
+    constructor(tl: tl.ton.adnl.id.AdnlIdShort) : this(tl.id)
     constructor(publicKey: PublicKey) : this(publicKey.hash())
+    constructor(shortId: ShortId<AdnlIdShort>) : this(shortId.shortId().publicKeyHash)
 
-    override fun compareTo(other: io.tonblocks.adnl.AdnlIdShort): Int {
+    override fun compareTo(other: AdnlIdShort): Int {
         return publicKeyHash.compareTo(other.publicKeyHash)
     }
+
+    override fun shortId(): AdnlIdShort = this
 
     @OptIn(ExperimentalStdlibApi::class)
     override fun toString(): String = publicKeyHash.toHexString()
 
-    fun tl(): AdnlIdShort = AdnlIdShort(publicKeyHash)
-
-    fun base64() = publicKeyHash.toByteArray().encodeBase64()
+    fun tl(): tl.ton.adnl.id.AdnlIdShort = tl.ton.adnl.id.AdnlIdShort(publicKeyHash)
 }
 
 data class AdnlIdFull(
     val publicKey: PublicKey
-) {
+) : ShortId<AdnlIdShort> {
     constructor(tl: tl.ton.PublicKey) : this(PublicKey(tl))
 
     private val shortId by lazy {
-        io.tonblocks.adnl.AdnlIdShort(publicKey.hash())
+        AdnlIdShort(publicKey.hash())
     }
 
-    fun shortId(): io.tonblocks.adnl.AdnlIdShort = shortId
+    override fun shortId(): AdnlIdShort = shortId
+
+    override fun compareTo(other: AdnlIdShort): Int = shortId.compareTo(other)
 
     override fun hashCode(): Int = shortId().hashCode()
 
