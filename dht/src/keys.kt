@@ -14,14 +14,26 @@ typealias DhtKeyHash = ByteString
 data class DhtKey(
     val id: PublicKeyHash,
     val name: String,
-    val idx: Int
+    val index: Int
 ) {
     constructor(tl: TlDhtKey) : this(tl.id, tl.name.decodeToString(), tl.idx)
+
+    init {
+        check(name.length <= 127) {
+            "Too big name length. length=${name.length}"
+        }
+        check(name.isNotEmpty()) {
+            "Empty name"
+        }
+        check(index in 0..15) {
+            "Bad index. index=$index"
+        }
+    }
 
     fun tl(): TlDhtKey = TlDhtKey(
         id = id,
         name = name.encodeToByteString(),
-        idx = idx
+        idx = index
     )
 
     fun hash(): DhtKeyHash = ByteString(*sha256(TL.Boxed.encodeToByteArray(tl())))
@@ -40,10 +52,26 @@ data class DhtKeyDescription(
         signature = tl.signature
     )
 
+    init {
+        check(key.id == publicKey.hash()) {
+            "Key hash mismatch: key.id=${key.id}, publicKey.hash()=${publicKey.hash()}"
+        }
+    }
+
     fun tl(): TlDhtKeyDescription = TlDhtKeyDescription(
         key = key.tl(),
         id = publicKey.tl(),
         updateRule = updateRule.tl(),
         signature = signature
     )
+
+    fun checkSignature(): Boolean {
+        val toSign = TL.Boxed.encodeToByteArray(
+            tl().copy(
+                signature = ByteString()
+            )
+        )
+        val encryptor = publicKey.createEncryptor()
+        return encryptor.checkSignature(toSign, signature.toByteArray())
+    }
 }

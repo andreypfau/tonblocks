@@ -5,16 +5,20 @@ import io.tonblocks.adnl.*
 import io.tonblocks.kv.KeyValueRepository
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
 import tl.ton.dht.DhtValueResult
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
+import kotlin.random.nextInt
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.INFINITE
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.measureTimedValue
 
 /**
@@ -55,13 +59,24 @@ class DhtImpl(
 ) : Dht {
     private val job = Job()
     override val coroutineContext: CoroutineContext = localNode.coroutineContext + job
-
     val keyId = localNode.key.hash()
     val routingTable = KademliaRoutingTable<RemoteDhtNode>(
         keyId,
         k,
         { it.node.id.shortId().publicKeyHash }
     )
+
+    private val pingJob = launch {
+        while (true) {
+            delay(5000)
+            routingTable.forEach { node ->
+                if ((Clock.System.now() - node.lastPingedAt) >= 1.minutes) {
+                    node.sendPing()
+                }
+                delay(500)
+            }
+        }
+    }
 
     fun addNode(node: DhtNode): RemoteDhtNode {
         val nodeNode = RemoteDhtNode(node)
@@ -100,7 +115,12 @@ class DhtImpl(
                 return storedValue
             }
         }
-        return beamSearch(hash)
+        return beamSearch(
+            key = hash,
+            query = { findValue(it) },
+            condition = { (value, _) -> value != null && !value.isExpired() && value.isValid() },
+            nextNodes = { (_, nodes) -> nodes }
+        )?.first
     }
 
     suspend fun findNodes() {
@@ -109,82 +129,12 @@ class DhtImpl(
             key,
             endIndex = Random.nextInt(8)
         )
-        findNodesQuery(ByteString(key))
-    }
-
-    private suspend fun beamSearch(key: DhtKeyHash): DhtValue? {
-        var currentBeam = routingTable.nearest(key, k * 2)
-        val visited = mutableSetOf<AdnlIdShort>()
-
-        while (currentBeam.isNotEmpty()) {
-            println("current beam: ${currentBeam.map { it.node.id.shortId() }}")
-
-            val results = currentBeam.map {
-                async {
-                    withTimeoutOrNull(Random.nextInt(2000, 4000).milliseconds) {
-                        it.findValue(key)
-                    }
-                }
-            }.awaitAll().filterNotNull()
-
-            val expanded = mutableSetOf<DhtNode>()
-            for ((value, nodes) in results) {
-                if (value != null) {
-                    return value
-                }
-                for (node in nodes) {
-                    if (visited.add(node.id.shortId())) {
-                        expanded.add(node)
-                    }
-                }
-            }
-
-            println("visited: $visited")
-            println("expanded: $expanded")
-
-            currentBeam = expanded.asSequence()
-                .map { addNode(it) }
-                .sortedBy { it.node.id.shortId().publicKeyHash.xorDist(key) }
-                .take(a)
-                .toList()
-            println("new beam: ${currentBeam.map { it.node.id.shortId() }}")
-        }
-
-        return null
-    }
-
-    private suspend fun findNodesQuery(
-        key: ByteString
-    ) = coroutineScope {
-        val list = routingTable.nearest(key, k * 2)
-        flow {
-            var currentBeam = list
-            val visited = mutableSetOf<AdnlIdShort>()
-
-            while (currentBeam.isNotEmpty()) {
-                println("current beam: ${currentBeam.map { it.node.id.shortId() }}")
-                currentBeam.forEach {
-                    emit(it)
-                }
-                val expanded = currentBeam.map {
-                    async {
-                        withTimeoutOrNull(Random.nextInt(2000, 4000).milliseconds) {
-                            it.findNode(key)
-                        } ?: emptyList()
-                    }
-                }.awaitAll().asSequence().flatten().distinctBy { it.id.shortId() }.filter {
-                    it.id.shortId() !in visited
-                }.toList()
-                visited.addAll(expanded.map { it.id.shortId() })
-                println("visited: $visited")
-                println("expanded: $expanded")
-                currentBeam = expanded.map { addNode(it) }
-                    .sortedBy { it.node.id.shortId().publicKeyHash.xorDist(key) }
-                    .take(a)
-                    .toList()
-                println("new beam: ${currentBeam.map { it.node.id.shortId() }}")
-            }
-        }.collect()
+        beamSearch(
+            key = ByteString(key),
+            query = { findNode(it) },
+            condition = { false },
+            nextNodes = { it }
+        )
     }
 
     override suspend fun resolveAddress(id: AdnlIdShort): AdnlAddressList? {
@@ -194,22 +144,95 @@ class DhtImpl(
         )
     }
 
+    private suspend fun <T : Any> beamSearch(
+        key: DhtKeyHash,
+        query: suspend RemoteDhtNode.(DhtKeyHash) -> T,
+        condition: (T) -> Boolean,
+        nextNodes: (T) -> List<DhtNode>
+    ): T? {
+        var currentBeam = routingTable.nearest(key, k * 2)
+        val visited = mutableSetOf<AdnlIdShort>()
+//        println("Look for key: ${key.toHexString()} ${key[0].toUByte().toString(2).padStart(8, '0')}")
+        var foundResult: T? = null
+        while (foundResult == null && currentBeam.isNotEmpty()) {
+//            println("Beam iteration: ${currentBeam.size}\n${currentBeam.joinToString("\n") { "${it.xorDistance(key)} ${it.node.id.shortId()} | ${it.node.id.shortId().publicKeyHash[0].toUByte().toString(2).padStart(8, '0')}" }}")
+            val expanded = mutableListOf<DhtNode>()
+            channelFlow {
+                currentBeam.forEach { node ->
+                    launch {
+                        val result = withTimeoutOrNull(Random.nextInt(2000, 4000).milliseconds) {
+                            query(node, key)
+                        }
+                        if (result != null) {
+                            send(result)
+                        }
+                    }
+                }
+            }.takeWhile { result ->
+                if (condition(result)) {
+                    foundResult = result
+                    false
+                } else {
+                    val nodes = nextNodes(result)
+                    for (node in nodes) {
+                        if (visited.add(node.id.shortId())) {
+                            expanded.add(node)
+                        }
+                    }
+                    true
+                }
+            }.collect()
+            if (foundResult != null) {
+                break
+            }
+
+            currentBeam = expanded.asSequence()
+                .map { addNode(it) }
+                .sortedBy { it xorDistance key }
+                .take(a * 2)
+                .toList()
+        }
+
+        return foundResult
+    }
+
     inner class RemoteDhtNode(
         val node: DhtNode,
     ) : Comparable<RemoteDhtNode> {
         private val latencyHistory = arrayOfNulls<Duration>(5)
         private val latencyHistoryIndex = atomic(0)
+        var lastPingedAt by atomic(Instant.DISTANT_PAST)
+            private set
+
+        val averageLatency: Duration
+            get() {
+                var nonNull = 0
+                var sum = Duration.ZERO
+                for (duration in latencyHistory) {
+                    if (duration != null) {
+                        sum += duration
+                        nonNull++
+                    }
+                }
+                if (sum == Duration.ZERO) {
+                    sum = INFINITE
+                }
+                return sum / nonNull
+            }
 
         override fun compareTo(other: RemoteDhtNode): Int {
-            return 0
+            return averageLatency.compareTo(other.averageLatency)
         }
+
+        infix fun xorDistance(key: DhtKeyHash) = key xorDistance node.id.shortId().publicKeyHash
 
         suspend fun client() = DhtTlClient(localNode.connection(node.id, node.addressList))
 
         suspend fun sendPing() {
             val client = client()
-            val latency = withTimeoutOrNull(10.seconds) {
-                val ping = Clock.System.now().toEpochMilliseconds()
+            val now = Clock.System.now()
+            val latency = withTimeoutOrNull(Random.nextInt(2000..4000).milliseconds) {
+                val ping = now.toEpochMilliseconds()
                 val (pong, latency) = measureTimedValue {
                     client.ping(ping).randomId
                 }
@@ -218,9 +241,8 @@ class DhtImpl(
                 }
                 latency
             }
-            if (latency != null) {
-                latencyHistory[latencyHistoryIndex.getAndIncrement() % latencyHistory.size] = latency
-            }
+            lastPingedAt = now
+            latencyHistory[latencyHistoryIndex.getAndIncrement() % latencyHistory.size] = latency
         }
 
         suspend fun findValue(hash: DhtKeyHash): Pair<DhtValue?, List<DhtNode>> {
@@ -247,61 +269,4 @@ class DhtImpl(
 
         override fun hashCode(): Int = node.id.hashCode()
     }
-
-
-//        val adnlConnection = object : AdnlConnection(transport, AdnlAddressList(dhtNode.addrList)) {
-//            override val localNode: AdnlLocalNode = adnlLocalNode
-//            override val remotePeer: AdnlPeer get() = AdnlPeer(PublicKey(dhtNode.id))
-//
-//            override suspend fun handleCustom(data: Source) {
-//            }
-//
-//            override suspend fun handleQuery(queryId: AdnlQueryId, data: Source) {
-//            }
-//        }
-//
-//        override fun compareTo(other: RemoteDhtNode): Int = roundTripTime.compareTo(other.roundTripTime)
-//
-//        suspend fun sendStore(value: DhtValue): Boolean {
-//            return true
-//        }
-//
-//        suspend fun sendFindValue(hash: DhtKeyHash): Pair<DhtValue?, List<DhtNode>> {
-//            val buffer = Buffer()
-//            TL.Boxed.encodeToSink(DhtFindValue.serializer(), buffer, DhtFindValue(hash, k))
-//            var (answer, time) = measureTimedValue {
-//                withTimeoutOrNull(3.seconds) {
-//                    adnlConnection.sendQuery(buffer)
-//                }
-//            }
-//            roundTripTime = time
-//            if (answer != null) {
-//                val peekAnswer = answer.peek()
-//                try {
-//                    val newDhtNode = TL.Boxed.decodeFromSource(DhtNode.serializer(), peekAnswer)
-//                    answer = peekAnswer
-//                } catch (_: Exception) {
-//                }
-//                TL.Boxed.decodeFromSource(DhtValueResult.serializer(), answer)
-//            }
-//            return Pair(null, emptyList())
-//        }
-//
-//        private fun demote() {
-//
-//        }
-//
-//        private fun Source.decodeValueResult(): Pair<DhtNode?, DhtValueResult> {
-//            var source = this
-//            val peek = source.peek()
-//
-//            var dhtNode: DhtNode? = null
-//            try {
-//                dhtNode = TL.Boxed.decodeFromSource(DhtNode.serializer(), peek)
-//                source = peek
-//            } catch (_: Exception) {
-//            }
-//            val valueResult = TL.Boxed.decodeFromSource(DhtValueResult.serializer(), source)
-//            return Pair(dhtNode, valueResult)
-//        }
 }

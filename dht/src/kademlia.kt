@@ -3,7 +3,7 @@ package io.tonblocks.dht
 import kotlinx.io.bytestring.ByteString
 import kotlinx.io.bytestring.indices
 
-infix fun ByteString.xorDist(other: ByteString): Int {
+infix fun ByteString.xorDistance(other: ByteString): Int {
     require(size == other.size) { "ByteStrings must be of the same size" }
     var distance = size * 8
     for (i in indices) {
@@ -36,23 +36,24 @@ class KademliaRoutingTable<T : Comparable<T>>(
     private val selfId: ByteString,
     k: Int,
     private val nodeId: (T) -> ByteString,
-    private val distanceToSelf: (T) -> Int = { nodeId(it) xorDist selfId }
+    private val distanceToSelf: (T) -> Int = { nodeId(it) xorDistance selfId }
 ) : Set<T> {
     private val idBitSize = selfId.size * Byte.SIZE_BITS
-    private val buckets = Array(idBitSize + 1) { KademliaBucket(k, nodeId) }
+    private val buckets_ = Array(idBitSize + 1) { KademliaBucket(k, nodeId) }
+    val buckets get() = buckets_.asList()
 
     override val size: Int
-        get() = buckets.fold(0) { acc, bucket -> acc + bucket.size }
+        get() = buckets_.fold(0) { acc, bucket -> acc + bucket.size }
 
-    override fun isEmpty(): Boolean = buckets.all { it.isEmpty() }
+    override fun isEmpty(): Boolean = buckets_.all { it.isEmpty() }
 
-    override fun iterator(): Iterator<T> = buckets.asIterable().flatMap { bucket -> bucket.asSequence() }.iterator()
+    override fun iterator(): Iterator<T> = buckets_.asIterable().flatMap { bucket -> bucket.asSequence() }.iterator()
 
     override fun contains(element: T): Boolean = bucketFor(element).contains(element)
 
     override fun containsAll(elements: Collection<T>): Boolean {
         val peers = elements.toMutableSet()
-        buckets.forEach { bucket ->
+        buckets_.forEach { bucket ->
             peers.removeAll(peers.filter { bucket.contains(it) }.toSet())
             if (peers.isEmpty()) {
                 return true
@@ -65,7 +66,7 @@ class KademliaRoutingTable<T : Comparable<T>>(
 
     fun nearest(targetId: ByteString, count: Int): List<T> {
         val results = mutableListOf<T>()
-        for (bucket in buckets) {
+        for (bucket in buckets_) {
             val bucketView = ArrayList(bucket)
             for (node in bucketView) {
                 val nodeId = nodeId(node)
@@ -83,7 +84,7 @@ class KademliaRoutingTable<T : Comparable<T>>(
         return distanceToSelf(node)
     }
 
-    private fun bucketFor(node: T) = buckets[logDistanceToSelf(node)]
+    private fun bucketFor(node: T) = buckets_[logDistanceToSelf(node)]
 }
 
 class KademliaBucket<T : Comparable<T>>(

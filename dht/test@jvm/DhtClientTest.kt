@@ -3,13 +3,13 @@ package io.tonblocks.dht
 import io.ktor.util.*
 import io.tonblocks.adnl.AdnlAddress
 import io.tonblocks.adnl.AdnlAddressList
-import io.tonblocks.adnl.AdnlIdShort
 import io.tonblocks.adnl.AdnlLocalNode
 import io.tonblocks.adnl.transport.UdpAdnlTransport
 import io.tonblocks.crypto.ed25519.Ed25519
 import io.tonblocks.kv.MapKeyValueRepository
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.io.bytestring.ByteString
 import kotlin.random.Random
 import kotlin.test.Test
@@ -61,15 +61,67 @@ class DhtClientTest {
         )
 
         dht.addNode(remoteNode)
-        val time = measureTime {
-            dht.findNodes()
+        repeat(10000) {
+            val time = measureTime {
+                dht.findNodes()
+            }
+            println("Populated table: $time")
+            println("Table size: ${dht.routingTable.size}")
+            dht.routingTable.buckets.forEachIndexed { bucketIndex, bucket ->
+                if (bucket.isNotEmpty()) {
+                    println("Bucket: $bucketIndex")
+                    bucket.forEachIndexed { index, remoteDhtNode ->
+                        println("  ${index}. ${remoteDhtNode.node.id.shortId()} ${remoteDhtNode.averageLatency} | lastPinged: ${remoteDhtNode.lastPingedAt}")
+                    }
+                }
+            }
+            println("\n\n\n")
         }
-        println("Populated table: $time")
-        println("Table size: ${dht.routingTable.size}")
-        val (value, dur) = measureTimedValue {
-            dht.resolveAddress(AdnlIdShort(Ed25519.PublicKey("WT1sM59M3dNe+drdIH9z5b9ewds/NewsRaKtOx0uris=".decodeBase64Bytes())))
+    }
+
+    @Test
+    fun selectTest(): Unit = runBlocking {
+        val (res, dur) = measureTimedValue {
+            getResult()
         }
-        println("Found for $dur value: $value")
-        println("Table size: ${dht.routingTable.size}")
+        println("done $res $dur")
+    }
+
+    suspend fun getResult(): Int? {
+        val tasks = listOf(
+            GlobalScope.async {
+                delay(2000)
+                42
+            },
+            GlobalScope.async {
+                delay(50)
+                1
+            },
+            GlobalScope.async {
+                delay(5000)
+                3
+            }
+        )
+        val f = channelFlow {
+            tasks.forEach {
+                launch {
+                    send(it.await())
+                }
+            }
+        }
+        val list = mutableListOf<Int>()
+        var result: Int? = null
+        f.takeWhile {
+            if (it == 42) {
+                result = it
+                false
+            } else {
+                true
+            }
+        }.collect {
+            list.add(it)
+        }
+        println("list: $list, result: $result")
+        return result
     }
 }

@@ -15,6 +15,17 @@ data class DhtValue(
     val signature: ByteString
 ) {
     fun isExpired(now: Instant = Clock.System.now()): Boolean = ttl < now
+
+    fun tl(): TlDhtValue = TlDhtValue(
+        key = description.tl(),
+        value = value,
+        ttl = ttl.epochSeconds.toInt(),
+        signature = signature
+    )
+
+    fun isValid(): Boolean {
+        return description.checkSignature() && description.updateRule.checkValue(this)
+    }
 }
 
 data class DhtNode(
