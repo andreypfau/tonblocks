@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="overlay-jvm">
-    <output-path>$PROJECT_DIR$/overlay/build/libs</output-path>
-    <root id="archive" name="overlay-jvm.jar">
-      <element id="module-output" name="kton.overlay.jvmMain" />
-    </root>
-  </artifact>
-</component>

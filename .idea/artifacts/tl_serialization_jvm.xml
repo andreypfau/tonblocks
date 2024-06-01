@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="tl-serialization-jvm">
-    <output-path>$PROJECT_DIR$/tl-serialization/build/libs</output-path>
-    <root id="archive" name="tl-serialization-jvm.jar">
-      <element id="module-output" name="kton.tl-serialization.jvmMain" />
-    </root>
-  </artifact>
-</component>

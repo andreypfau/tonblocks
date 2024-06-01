@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="rldp-jvm">
-    <output-path>$PROJECT_DIR$/rldp/build/libs</output-path>
-    <root id="archive" name="rldp-jvm.jar">
-      <element id="module-output" name="kton.rldp.jvmMain" />
-    </root>
-  </artifact>
-</component>

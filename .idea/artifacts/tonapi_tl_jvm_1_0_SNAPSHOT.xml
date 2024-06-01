@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="tonapi-tl-jvm-1.0-SNAPSHOT">
-    <output-path>$PROJECT_DIR$/tonapi-tl/build/libs</output-path>
-    <root id="archive" name="tonapi-tl-jvm-1.0-SNAPSHOT.jar">
-      <element id="module-output" name="kton.tonapi-tl.jvmMain" />
-    </root>
-  </artifact>
-</component>

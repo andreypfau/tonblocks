@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="tonnode-jvm">
-    <output-path>$PROJECT_DIR$/tonnode/build/libs</output-path>
-    <root id="archive" name="tonnode-jvm.jar">
-      <element id="module-output" name="kton.tonnode.jvmMain" />
-    </root>
-  </artifact>
-</component>

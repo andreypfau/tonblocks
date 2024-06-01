@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="adnl-jvm-1.0-SNAPSHOT">
-    <output-path>$PROJECT_DIR$/adnl/build/libs</output-path>
-    <root id="archive" name="adnl-jvm-1.0-SNAPSHOT.jar">
-      <element id="module-output" name="kton.adnl.jvmMain" />
-    </root>
-  </artifact>
-</component>

@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="cell-jvm-1.0-SNAPSHOT">
-    <output-path>$PROJECT_DIR$/cell/build/libs</output-path>
-    <root id="archive" name="cell-jvm-1.0-SNAPSHOT.jar">
-      <element id="module-output" name="kton.cell.jvmMain" />
-    </root>
-  </artifact>
-</component>

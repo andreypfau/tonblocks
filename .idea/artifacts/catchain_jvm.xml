@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="catchain-jvm">
-    <output-path>$PROJECT_DIR$/catchain/build/libs</output-path>
-    <root id="archive" name="catchain-jvm.jar">
-      <element id="module-output" name="kton.catchain.jvmMain" />
-    </root>
-  </artifact>
-</component>

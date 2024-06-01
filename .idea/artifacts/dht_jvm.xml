@@ -1,8 +1,0 @@
-<component name="ArtifactManager">
-  <artifact type="jar" name="dht-jvm">
-    <output-path>$PROJECT_DIR$/dht/build/libs</output-path>
-    <root id="archive" name="dht-jvm.jar">
-      <element id="module-output" name="kton.dht.jvmMain" />
-    </root>
-  </artifact>
-</component>
