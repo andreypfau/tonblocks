@@ -9,10 +9,8 @@ import io.tonblocks.crypto.overlay.OverlayPublicKey
 import kotlinx.io.bytestring.ByteString
 import kotlinx.serialization.encodeToByteArray
 
-typealias PublicKeyHash = ByteString
-
 interface PublicKey {
-    fun hash(): PublicKeyHash =  ByteString(*sha256(TL.encodeToByteArray(tl())))
+    fun hash(): ByteString = ByteString(*sha256(TL.encodeToByteArray(tl())))
 
     fun createEncryptor(): Encryptor
 
@@ -22,7 +20,7 @@ interface PublicKey {
 interface PrivateKey {
     fun publicKey(): PublicKey
 
-    fun hash(): PublicKeyHash = publicKey().hash()
+    fun hash(): ByteString = publicKey().hash()
 
     fun createDecryptor(): Decryptor
 

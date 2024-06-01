@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/adnl/kton.adnl.jvm.iml" filepath="$PROJECT_DIR$/.idea/modules/adnl/kton.adnl.jvm.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/adnl/kton.adnl.jvmTest.iml" filepath="$PROJECT_DIR$/.idea/modules/adnl/kton.adnl.jvmTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/dht/kton.dht.jvmTest.iml" filepath="$PROJECT_DIR$/.idea/modules/dht/kton.dht.jvmTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/keys/kton.keys.jvmTest.iml" filepath="$PROJECT_DIR$/.idea/modules/keys/kton.keys.jvmTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/tonapi-tl/kton.tonapi-tl.jvmTest.iml" filepath="$PROJECT_DIR$/.idea/modules/tonapi-tl/kton.tonapi-tl.jvmTest.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/tonnode/kton.tonnode.jvmTest.iml" filepath="$PROJECT_DIR$/.idea/modules/tonnode/kton.tonnode.jvmTest.iml" />
+    </modules>
+  </component>
+</project>

@@ -1,47 +1,68 @@
 package io.tonblocks.tonnode
 
+import kotlin.jvm.JvmInline
+
 typealias WorkchainId = Int
-typealias ShardId = ULong
+
+@JvmInline
+value class ShardId(
+    val value: ULong
+) {
+    constructor(shardPrefix: Int, length: Int) : this((2uL * shardPrefix.toULong() + 1uL) shl (63 - length))
+
+    fun childRight(): ShardId = ShardId(value + (lowerBits64(value) shr 1))
+
+    fun childLeft(): ShardId = ShardId(value - (lowerBits64(value) shr 1))
+
+    fun parent(): ShardId {
+        val x = lowerBits64(value)
+        return ShardId((value - x) or (x shl 1))
+    }
+
+    operator fun contains(other: ShardId): Boolean {
+        val x = lowerBits64(value)
+        return ((value xor other.value) and (bitsNegative64(x) shl 1)) == 0uL
+    }
+
+    fun toLong(): Long = value.toLong()
+
+    override fun toString(): String = value.toString(16).padStart(16, '0')
+
+    companion object {
+        val ROOT = ShardId(1uL shl 63)
+    }
+}
 
 data class ShardIdFull(
     val workchain: WorkchainId,
-    val shard: ShardId = ROOT_SHARD_ID
+    val shard: ShardId = ShardId.ROOT
 ) {
     init {
-        check(workchain == BASECHAIN_ID || (workchain == MASTERCHAIN_ID && shard == ROOT_SHARD_ID)) {
+        check(workchain == BASECHAIN_ID || (workchain == MASTERCHAIN_ID && shard == ShardId.ROOT)) {
             "Invalid shard id: $this"
         }
     }
 
-    fun child(right: Boolean): ShardIdFull = ShardIdFull(workchain, childShard(shard, right))
-    fun parent(): ShardIdFull = ShardIdFull(workchain, parentShard(shard))
+    fun parent(): ShardIdFull = ShardIdFull(workchain, shard.parent())
 
-    operator fun contains(child: ShardId): Boolean = containsShard(shard, child)
+    fun childRight(): ShardIdFull = ShardIdFull(workchain, shard.childRight())
 
-    @OptIn(ExperimentalStdlibApi::class)
-    override fun toString(): String = "$workchain:${shard.toHexString().padStart(16, '0')}"
+    fun childLeft(): ShardIdFull = ShardIdFull(workchain, shard.childLeft())
+
+    operator fun contains(other: ShardId): Boolean = shard.contains(other)
+
+    operator fun contains(other: ShardIdFull): Boolean {
+        if (workchain != other.workchain) return false
+        return shard.contains(other.shard)
+    }
+
+    override fun toString(): String = "$workchain:$shard"
 
     companion object {
-        val ROOT_SHARD_ID: ShardId = 1uL shl 63
         val MASTERCHAIN_ID: WorkchainId = -1
         val BASECHAIN_ID: WorkchainId = 0
-
-        fun containsShard(parent: ShardId, child: ShardId): Boolean {
-            val x = lowerBits64(parent)
-            return ((parent xor child) and (bitsNegative64(x) shl 1)) == 0uL
-        }
-
-        fun childShard(shard: ShardId, right: Boolean): ShardId {
-            val x = lowerBits64(shard) shr 1
-            return if (right) shard + x else shard - x
-        }
-
-        fun parentShard(shard: ShardId): ShardId {
-            val x = lowerBits64(shard)
-            return (shard - x) or (x shl 1)
-        }
     }
 }
 
-internal inline fun lowerBits64(x: ULong) = x and bitsNegative64(x)
-internal inline fun bitsNegative64(x: ULong) = x.inv() + 1u
+private fun bitsNegative64(x: ULong) = x.inv() + 1u
+private fun lowerBits64(x: ULong) = x and bitsNegative64(x)

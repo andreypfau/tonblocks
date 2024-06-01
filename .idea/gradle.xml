@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <option name="distributionType" value="WRAPPED" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="#JAVA_HOME" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/adnl" />
+            <option value="$PROJECT_DIR$/catchain" />
+            <option value="$PROJECT_DIR$/cell" />
+            <option value="$PROJECT_DIR$/dht" />
+            <option value="$PROJECT_DIR$/keys" />
+            <option value="$PROJECT_DIR$/kv" />
+            <option value="$PROJECT_DIR$/overlay" />
+            <option value="$PROJECT_DIR$/rldp" />
+            <option value="$PROJECT_DIR$/tl-serialization" />
+            <option value="$PROJECT_DIR$/tonapi-tl" />
+            <option value="$PROJECT_DIR$/tonnode" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

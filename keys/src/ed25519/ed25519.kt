@@ -6,7 +6,6 @@ import io.github.andreypfau.kotlinx.crypto.sha256
 import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.crypto.Decryptor
 import io.tonblocks.crypto.Encryptor
-import io.tonblocks.crypto.PublicKeyHash
 import io.tonblocks.crypto.aes.DecryptorAes
 import io.tonblocks.crypto.aes.EncryptorAes
 import kotlinx.io.bytestring.ByteString
@@ -36,7 +35,7 @@ object Ed25519 {
             super.hash()
         }
 
-        override fun hash(): PublicKeyHash = hash
+        override fun hash(): ByteString = hash
 
         fun toByteArray(): ByteArray = key.toByteArray()
 
