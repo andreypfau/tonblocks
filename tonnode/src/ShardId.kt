@@ -8,7 +8,13 @@ typealias WorkchainId = Int
 value class ShardId(
     val value: ULong
 ) {
-    constructor(shardPrefix: Int, length: Int) : this((2uL * shardPrefix.toULong() + 1uL) shl (63 - length))
+    constructor(shardPrefix: ULong, length: Int) : this((2uL * shardPrefix + 1uL) shl (63 - length)) {
+        require(length <= 60) { "Invalid length, expected: 0..60, actual: $length" }
+    }
+
+    constructor(string: String) : this(string.toULong(16))
+
+    fun length(): Int = if (value != 0uL) 63 - value.countTrailingZeroBits() else 0
 
     fun childRight(): ShardId = ShardId(value + (lowerBits64(value) shr 1))
 
