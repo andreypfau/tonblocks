@@ -9,10 +9,14 @@ value class ShardId(
     val value: ULong
 ) {
     constructor(shardPrefix: ULong, length: Int) : this((2uL * shardPrefix + 1uL) shl (63 - length)) {
-        require(length <= 60) { "Invalid length, expected: 0..60, actual: $length" }
+        require(length in 0..60) { "Invalid length, expected: 0..60, actual: $length" }
     }
 
     constructor(string: String) : this(string.toULong(16))
+
+    init {
+        require(value > 0u) { "Invalid shard value: $value" }
+    }
 
     fun length(): Int = if (value != 0uL) 63 - value.countTrailingZeroBits() else 0
 
@@ -44,7 +48,7 @@ data class ShardIdFull(
     val shard: ShardId = ShardId.ROOT
 ) {
     init {
-        check(workchain == BASECHAIN_ID || (workchain == MASTERCHAIN_ID && shard == ShardId.ROOT)) {
+        require(workchain == BASECHAIN_ID || (workchain == MASTERCHAIN_ID && shard == ShardId.ROOT)) {
             "Invalid shard id: $this"
         }
     }
