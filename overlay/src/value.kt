@@ -15,4 +15,11 @@ data class OverlayNode(
         version = tl.version,
         signature = tl.signature
     )
+
+    fun tl(): tl.ton.overlay.OverlayNode = tl.ton.overlay.OverlayNode(
+        id = source.publicKey.tl(),
+        overlay = overlayId.publicKeyHash,
+        version = version,
+        signature = signature
+    )
 }

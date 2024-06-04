@@ -91,10 +91,6 @@ class DhtClientTest {
 ////            println("\n\n\n")
 //        }
         println("ton mainnet: ${dht.resolveNodes(TON_MAINNET_MASTERCHAIN)}")
-        println("ton testnet: ${dht.resolveNodes(TON_TESTNET_MASTERCHAIN)}")
-        println("ever mainnet: ${dht.resolveNodes(EVERSCALE_MAINNET_MASTERCHAIN)}")
-        println("ever testnet: ${dht.resolveNodes(EVERSCALE_TESTNET_MASTERCHAIN)}")
-        println("venom mainnet: ${dht.resolveNodes(VENOM_MAINNET_MASTERCHAIN)}")
     }
 
     @Test

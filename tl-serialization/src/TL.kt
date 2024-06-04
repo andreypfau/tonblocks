@@ -7,6 +7,7 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.modules.EmptySerializersModule
 import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.serializer
 
 open class TL(
     val boxed: Boolean,
@@ -49,3 +50,15 @@ open class TL(
         return decoder.decodeSerializableValue(deserializer)
     }
 }
+
+inline fun <reified T> TL.decodeFromSource(source: Source): T =
+    decodeFromSource(serializersModule.serializer(), source)
+
+inline fun <reified T> TL.decodeFromByteString(bytes: ByteString): T =
+    decodeFromByteString(serializersModule.serializer(), bytes)
+
+inline fun <reified T> TL.encodeToSink(sink: Sink, value: T) =
+    encodeToSink(serializersModule.serializer(), sink, value)
+
+inline fun <reified T> TL.encodeToByteString(value: T): ByteString =
+    encodeToByteString(serializersModule.serializer(), value)

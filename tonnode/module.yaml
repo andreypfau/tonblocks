@@ -15,3 +15,7 @@ dependencies:
   - $libs.kotlinx.coroutines.core
   - $libs.kotlinx.crypto.sha2
   - $libs.kotlinx.serialization.core
+
+test-dependencies:
+  - ../dht
+  - ../kv

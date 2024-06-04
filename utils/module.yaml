@@ -1,0 +1,8 @@
+product:
+  type: lib
+  platforms:
+    - jvm
+    - macosArm64
+    - linuxX64
+dependencies:
+  - $libs.kotlinx.atomicfu

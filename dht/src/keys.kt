@@ -3,22 +3,22 @@ package io.tonblocks.dht
 import io.github.andreypfau.kotlinx.crypto.sha256
 import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.crypto.PublicKey
-import io.tonblocks.crypto.PublicKeyHash
 import kotlinx.io.bytestring.ByteString
 import kotlinx.io.bytestring.decodeToString
 import kotlinx.io.bytestring.encodeToByteString
 import kotlinx.serialization.encodeToByteArray
 
-typealias DhtKeyHash = ByteString
-
 data class DhtKey(
-    val id: PublicKeyHash,
+    val id: ByteString,
     val name: String,
     val index: Int
 ) {
     constructor(tl: TlDhtKey) : this(tl.id, tl.name.decodeToString(), tl.idx)
 
     init {
+        check(id.size == 32) {
+            "Invalid id size, expected: 32, actual: ${name.length}"
+        }
         check(name.length <= 127) {
             "Too big name length. length=${name.length}"
         }
@@ -36,7 +36,9 @@ data class DhtKey(
         idx = index
     )
 
-    fun hash(): DhtKeyHash = ByteString(*sha256(TL.Boxed.encodeToByteArray(tl())))
+    fun hash(): ByteString = ByteString(*sha256(TL.Boxed.encodeToByteArray(tl())))
+
+    override fun toString(): String = "DhtKey(name=$name, index=$index, id=${id})"
 }
 
 data class DhtKeyDescription(

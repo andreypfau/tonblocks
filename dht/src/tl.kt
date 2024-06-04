@@ -1,8 +1,10 @@
 package io.tonblocks.dht
 
 import io.github.andreypfau.tl.serialization.TL
+import io.github.andreypfau.tl.serialization.decodeFromSource
+import io.github.andreypfau.tl.serialization.encodeToSink
 import io.tonblocks.adnl.AdnlAddressList
-import io.tonblocks.adnl.AdnlConnection
+import io.tonblocks.adnl.AdnlClient
 import io.tonblocks.adnl.AdnlIdFull
 import io.tonblocks.adnl.tl
 import kotlinx.datetime.Instant
@@ -49,22 +51,20 @@ fun DhtValue(tl: TlDhtValue): DhtValue = DhtValue(
 )
 
 class DhtTlClient(
-    val connection: AdnlConnection
+    val sender: AdnlClient
 ) : TlDht {
     // TODO: fix DhtPing constructor id (expected: 0xCBEB3F18, actual: 0xCF6643AA)
     override suspend fun ping(randomId: Long): DhtPong {
         val buffer = Buffer()
-        TL.Boxed.encodeToSink(DhtPing.serializer(), buffer, DhtPing(randomId))
-        val answer = connection.sendQuery(buffer)
-        return TL.Boxed.decodeFromSource(DhtPong.serializer(), answer)
+        TL.Boxed.encodeToSink(buffer, DhtPing(randomId))
+        return TL.Boxed.decodeFromSource(sender.sendQuery(buffer))
     }
 
     // TODO: fix DhtStore constructor id (expected: 0x34934212)
     override suspend fun store(value: tl.ton.dht.DhtValue): DhtStored {
         val buffer = Buffer()
-        TL.Boxed.encodeToSink(TlDhtStore.serializer(), buffer, TlDhtStore(value))
-        val answer = connection.sendQuery(buffer)
-        return TL.Boxed.decodeFromSource(DhtStored.serializer(), answer)
+        TL.Boxed.encodeToSink(buffer, TlDhtStore(value))
+        return TL.Boxed.decodeFromSource(sender.sendQuery(buffer))
     }
 
     // TODO: fix DhtFindNodes constructor id (expected: 0x7974A0BE)
@@ -72,7 +72,7 @@ class DhtTlClient(
     override suspend fun findNode(key: ByteString, k: Int): TlDhtNodes {
         val buffer = Buffer()
         TL.Boxed.encodeToSink(TlDhtFindNode.serializer(), buffer, TlDhtFindNode(key, k))
-        val answer = connection.sendQuery(buffer).readByteArray()
+        val answer = sender.sendQuery(buffer).readByteArray()
         return try {
             TL.Boxed.decodeFromByteArray(TlDhtNodes.serializer(), answer)
         } catch (e: Throwable) {
@@ -91,7 +91,7 @@ class DhtTlClient(
     override suspend fun findValue(key: ByteString, k: Int): TlDhtValueResult {
         val buffer = Buffer()
         TL.Boxed.encodeToSink(TlDhtFindValue.serializer(), buffer, TlDhtFindValue(key, k))
-        val answer = connection.sendQuery(buffer).readByteArray()
+        val answer = sender.sendQuery(buffer).readByteArray()
 
         // TODO: fix deserialize polymorphic using TL.Boxed
         return try {

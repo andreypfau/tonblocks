@@ -9,5 +9,11 @@ dependencies:
   - ../adnl
   - ../keys
   - ../tonapi-tl
+  - ../utils
+  - ../tl-serialization
   - $libs.kotlinx.io.core
+  - $libs.kotlinx.serialization.core
   - $libs.kotlinx.coroutines.core
+  - $libs.kotlinx.atomicfu
+  - $libs.kotlinx.datetime
+  - $libs.cache4k

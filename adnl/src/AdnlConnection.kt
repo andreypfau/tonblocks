@@ -33,7 +33,7 @@ abstract class AdnlConnection(
     val transport: AdnlTransport,
     addressList: AdnlAddressList,
     coroutineContext: CoroutineContext
-) : CoroutineScope {
+) : CoroutineScope, AdnlClient {
     private val job = Job()
     override val coroutineContext: CoroutineContext = coroutineContext + job
 
@@ -174,7 +174,7 @@ abstract class AdnlConnection(
         }
     }
 
-    open suspend fun sendQuery(query: Source): Source {
+    override suspend fun sendQuery(query: Source): Source {
         val queryId = ByteString(*Random.nextBytes(32))
         val deferred = CompletableDeferred<Buffer>()
         deferred.invokeOnCompletion { queries.remove(queryId) }
@@ -183,7 +183,7 @@ abstract class AdnlConnection(
         return deferred.await()
     }
 
-    open suspend fun sendCustom(data: Source) {
+    override suspend fun sendCustom(data: Source) {
         sendMessage(AdnlMessageCustom(data.readByteArray()))
     }
 

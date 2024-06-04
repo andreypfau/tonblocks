@@ -2,17 +2,17 @@ package io.tonblocks.tonnode
 
 import io.github.andreypfau.kotlinx.crypto.sha256
 import io.github.andreypfau.tl.serialization.TL
+import io.tonblocks.adnl.AdnlAddressResolver
 import io.tonblocks.adnl.AdnlLocalNode
 import io.tonblocks.overlay.Overlay
 import io.tonblocks.overlay.OverlayIdFull
 import io.tonblocks.overlay.OverlayImpl
+import io.tonblocks.overlay.OverlayNode
 import kotlinx.coroutines.*
 import kotlinx.io.bytestring.ByteString
 import kotlinx.serialization.encodeToByteArray
 import tl.ton.tonnode.TonNodeShardPublicOverlayId
 import kotlin.coroutines.CoroutineContext
-import kotlin.random.Random
-import kotlin.time.Duration.Companion.milliseconds
 
 interface TonNodeShard : CoroutineScope {
     val id: ShardIdFull
@@ -39,27 +39,22 @@ fun OverlayIdFull(
 
 class TonNodeShardImpl(
     val localNode: AdnlLocalNode,
+    val adnlAddressResolver: AdnlAddressResolver,
     override val id: ShardIdFull,
     override val zeroStateFileHash: ByteString,
+    nodes: List<OverlayNode> = emptyList(),
     coroutineContext: CoroutineContext = Dispatchers.Default
 ) : TonNodeShard {
     private val job = SupervisorJob()
     override val coroutineContext: CoroutineContext = coroutineContext + job
 
-    override val overlay = OverlayImpl(
+    override val overlay = object : OverlayImpl(
         localNode = localNode,
         id = OverlayIdFull(id, zeroStateFileHash),
+        isPublic = true,
+        nodes = nodes,
         coroutineContext = coroutineContext
-    )
-
-    private val reloadNeighboursJob = launch {
-        while (true) {
-            reloadNeighbours()
-            delay(Random.nextInt(10_000, 30_000).milliseconds)
-        }
-    }
-
-    private suspend fun reloadNeighbours() {
-        overlay.randomPeers(maxNeighbours)
+    ) {
+        override val addressResolver: AdnlAddressResolver get() = this@TonNodeShardImpl.adnlAddressResolver
     }
 }

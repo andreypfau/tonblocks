@@ -4,6 +4,7 @@ import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.adnl.*
 import io.tonblocks.crypto.ShortId
 import io.tonblocks.kv.KeyValueRepository
+import io.tonblocks.kv.MapKeyValueRepository
 import io.tonblocks.overlay.OverlayIdShort
 import io.tonblocks.overlay.OverlayNode
 import io.tonblocks.overlay.OverlayNodesResolver
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
+import kotlinx.io.bytestring.toHexString
 import tl.ton.dht.DhtValueResult
 import tl.ton.overlay.OverlayNodes
 import kotlin.coroutines.CoroutineContext
@@ -43,7 +45,7 @@ interface Dht : AdnlAddressResolver, OverlayNodesResolver, CoroutineScope {
     /**
      * Get a value from the DHT by key hash
      */
-    suspend fun get(hash: DhtKeyHash): DhtValue?
+    suspend fun get(hash: ByteString): DhtValue?
 
     /**
      * Get a value from the DHT by key preimage
@@ -58,7 +60,7 @@ interface Dht : AdnlAddressResolver, OverlayNodesResolver, CoroutineScope {
 
 class DhtImpl(
     val localNode: AdnlLocalNode,
-    val repository: KeyValueRepository<DhtKeyHash, DhtValue>,
+    val repository: KeyValueRepository<ByteString, DhtValue> = MapKeyValueRepository(),
     override val k: Int = 10,
     override val a: Int = 3,
 ) : Dht {
@@ -111,7 +113,7 @@ class DhtImpl(
 //        }
     }
 
-    override suspend fun get(hash: DhtKeyHash): DhtValue? {
+    override suspend fun get(hash: ByteString): DhtValue? {
         val storedValue = repository.get(hash)
         if (storedValue != null) {
             if (storedValue.isExpired()) {
@@ -150,29 +152,40 @@ class DhtImpl(
     }
 
     override suspend fun resolveNodes(id: ShortId<OverlayIdShort>): List<OverlayNode>? {
-        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "nodes", 0)) ?: return null
+        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "nodes", 0).also {
+            println("find value: $it")
+        }) ?: return null
         return TL.Boxed.decodeFromByteString(OverlayNodes.serializer(), dhtValue.value).nodes.map {
             OverlayNode(it)
         }
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     private suspend fun <T : Any> beamSearch(
-        key: DhtKeyHash,
-        query: suspend RemoteDhtNode.(DhtKeyHash) -> T,
+        key: ByteString,
+        query: suspend RemoteDhtNode.(ByteString) -> T,
         condition: (T) -> Boolean,
         nextNodes: (T) -> List<DhtNode>
     ): T? {
         var currentBeam = routingTable.nearest(key, k * 2)
         val visited = mutableSetOf<AdnlIdShort>()
-//        println("Look for key: ${key.toHexString()} ${key[0].toUByte().toString(2).padStart(8, '0')}")
+        println("Look for key: ${key.toHexString()} ${key[0].toUByte().toString(2).padStart(8, '0')}")
         var foundResult: T? = null
         while (foundResult == null && currentBeam.isNotEmpty()) {
-//            println("Beam iteration: ${currentBeam.size}\n${currentBeam.joinToString("\n") { "${it.xorDistance(key)} ${it.node.id.shortId()} | ${it.node.id.shortId().publicKeyHash[0].toUByte().toString(2).padStart(8, '0')}" }}")
+            println(
+                "Beam iteration: ${currentBeam.size}\n${
+                    currentBeam.joinToString("\n") {
+                        "${it.xorDistance(key)} ${it.node.id.shortId()} | ${
+                            it.node.id.shortId().publicKeyHash[0].toUByte().toString(2).padStart(8, '0')
+                        }"
+                    }
+                }"
+            )
             val expanded = mutableListOf<DhtNode>()
             channelFlow {
                 currentBeam.forEach { node ->
                     launch {
-                        val result = withTimeoutOrNull(Random.nextInt(2000, 4000).milliseconds) {
+                        val result = withTimeoutOrNull(Random.nextInt(3000, 5000).milliseconds) {
                             query(node, key)
                         }
                         if (result != null) {
@@ -236,14 +249,14 @@ class DhtImpl(
             return averageLatency.compareTo(other.averageLatency)
         }
 
-        infix fun xorDistance(key: DhtKeyHash) = key xorDistance node.id.shortId().publicKeyHash
+        infix fun xorDistance(key: ByteString) = key xorDistance node.id.shortId().publicKeyHash
 
         suspend fun client() = DhtTlClient(localNode.connection(node.id, node.addressList))
 
         suspend fun sendPing() {
             val client = client()
             val now = Clock.System.now()
-            val latency = withTimeoutOrNull(Random.nextInt(2000..4000).milliseconds) {
+            val latency = withTimeoutOrNull(Random.nextInt(3000..5000).milliseconds) {
                 val ping = now.toEpochMilliseconds()
                 val (pong, latency) = measureTimedValue {
                     client.ping(ping).randomId
@@ -257,7 +270,7 @@ class DhtImpl(
             latencyHistory[latencyHistoryIndex.getAndIncrement() % latencyHistory.size] = latency
         }
 
-        suspend fun findValue(hash: DhtKeyHash): Pair<DhtValue?, List<DhtNode>> {
+        suspend fun findValue(hash: ByteString): Pair<DhtValue?, List<DhtNode>> {
             val client = client()
             return when (val answer = client.findValue(hash, k)) {
                 is DhtValueResult.ValueFound -> DhtValue(answer.value) to emptyList()
@@ -265,7 +278,7 @@ class DhtImpl(
             }
         }
 
-        suspend fun findNode(hash: DhtKeyHash): List<DhtNode> {
+        suspend fun findNode(hash: ByteString): List<DhtNode> {
             val client = client()
             return client.findNode(hash, k).nodes.map { DhtNode(it) }
         }

@@ -1,7 +1,9 @@
 package io.tonblocks.adnl
 
 import io.github.andreypfau.tl.serialization.TL
+import io.github.reactivecircus.cache4k.Cache
 import io.ktor.utils.io.core.*
+import io.tonblocks.adnl.channel.AdnlChannel
 import io.tonblocks.adnl.query.AdnlQueryId
 import io.tonblocks.adnl.transport.AdnlTransport
 import io.tonblocks.crypto.PublicKey
@@ -11,13 +13,12 @@ import kotlinx.atomicfu.update
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.job
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.io.Source
 import kotlinx.serialization.decodeFromByteArray
 import tl.ton.adnl.AdnlPacketContents
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.minutes
 
 class AdnlLocalNode(
     val transport: AdnlTransport,
@@ -30,9 +31,13 @@ class AdnlLocalNode(
     val id = AdnlIdFull(key.publicKey())
 
     private val job = SupervisorJob(transport.coroutineContext.job)
-    private val connections = HashMap<AdnlIdShort, AdnlConnection>()
+    private val connections = Cache.Builder<AdnlIdShort, AdnlConnection>()
+        .expireAfterAccess(15.minutes)
+        .build()
+    private val channels = Cache.Builder<AdnlIdShort, AdnlChannel>()
+        .expireAfterAccess(15.minutes)
+        .build()
     private val addressList_ = atomic(addressList)
-    private val mx = Mutex()
 
     val addressList by addressList_
 
@@ -107,33 +112,51 @@ class AdnlLocalNode(
         connection.handlePacket(packet)
     }
 
-    suspend fun channel(id: AdnlIdShort) = mx.withLock {
-        connections.values.find {
+    fun channel(id: AdnlIdShort): AdnlChannel? {
+        var channel = channels.get(id)
+        if (channel != null) {
+            return channel
+        }
+        channel = connections.asMap().values.find {
             it.channel.value?.input?.id == id
         }?.channel?.value
+        if (channel != null) {
+            channels.put(id, channel)
+        }
+        return channel
     }
 
-    suspend fun connection(id: AdnlIdShort): AdnlConnection? {
-        return mx.withLock {
-            connections[id]
+    fun connection(id: AdnlIdShort): AdnlConnection? {
+        return connections.get(id)
+    }
+
+    suspend fun connection(id: AdnlIdFull, resolver: AdnlAddressResolver): AdnlConnection? {
+        val shortId = id.shortId()
+        var connection = connections.get(shortId)
+        if (connection != null) {
+            return connection
         }
+        println("resolving address: $id")
+        val addresses = resolver.resolveAddress(shortId) ?: return null
+        connection = createConnection(id, addresses)
+        connections.put(shortId, connection)
+        return connection
     }
 
     suspend fun connection(publicKey: PublicKey, addressList: AdnlAddressList): AdnlConnection =
         connection(AdnlIdFull(publicKey), addressList)
 
     suspend fun connection(id: AdnlIdFull, addressList: AdnlAddressList): AdnlConnection {
-        return mx.withLock {
-            connections.getOrPut(id.shortId()) {
-                createConnection(id, addressList)
-            }
+        return connections.get(id.shortId()) {
+            createConnection(id, addressList)
         }
     }
 
-    suspend fun removeConnection(id: AdnlIdShort) {
-        mx.withLock {
-            connections.remove(id)
+    fun removeConnection(id: AdnlIdShort) {
+        connection(id)?.channel?.value?.input?.id?.let {
+            channels.invalidate(it)
         }
+        connections.invalidate(id)
     }
 
     private fun createConnection(
@@ -151,7 +174,10 @@ class AdnlLocalNode(
             }
         }
         connection.coroutineContext.job.invokeOnCompletion {
-            connections.remove(id.shortId())
+            connections.invalidate(id.shortId())
+            connection.channel.value?.input?.id?.let {
+                channels.invalidate(it)
+            }
         }
         return connection
     }
