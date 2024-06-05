@@ -7,9 +7,9 @@ import kotlinx.io.Buffer
 import kotlinx.io.Source
 
 interface AdnlClient {
-    suspend fun sendQuery(query: Source): Source
+    suspend fun sendQuery(data: Source): Source
 
-    suspend fun sendCustom(data: Source)
+    suspend fun sendMessage(data: Source)
 }
 
 suspend inline fun <reified Q : Any, reified A : Any> AdnlClient.sendTlQuery(

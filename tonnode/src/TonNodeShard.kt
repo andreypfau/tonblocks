@@ -3,12 +3,15 @@ package io.tonblocks.tonnode
 import io.github.andreypfau.kotlinx.crypto.sha256
 import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.adnl.AdnlAddressResolver
+import io.tonblocks.adnl.AdnlClient
 import io.tonblocks.adnl.AdnlLocalNode
+import io.tonblocks.overlay.AbstractOverlay
 import io.tonblocks.overlay.Overlay
 import io.tonblocks.overlay.OverlayIdFull
-import io.tonblocks.overlay.OverlayImpl
 import io.tonblocks.overlay.OverlayNode
 import kotlinx.coroutines.*
+import kotlinx.io.Buffer
+import kotlinx.io.Source
 import kotlinx.io.bytestring.ByteString
 import kotlinx.serialization.encodeToByteArray
 import tl.ton.tonnode.TonNodeShardPublicOverlayId
@@ -48,7 +51,7 @@ class TonNodeShardImpl(
     private val job = SupervisorJob()
     override val coroutineContext: CoroutineContext = coroutineContext + job
 
-    override val overlay = object : OverlayImpl(
+    override val overlay = object : AbstractOverlay(
         localNode = localNode,
         id = OverlayIdFull(id, zeroStateFileHash),
         isPublic = true,
@@ -56,5 +59,19 @@ class TonNodeShardImpl(
         coroutineContext = coroutineContext
     ) {
         override val addressResolver: AdnlAddressResolver get() = this@TonNodeShardImpl.adnlAddressResolver
+
+        override suspend fun receiveMessage(source: AdnlClient, data: Source) {
+
+        }
+
+        override suspend fun receiveQuery(
+            source: AdnlClient,
+            data: Source
+        ): Buffer {
+            TODO("Not yet implemented")
+        }
+
+        override suspend fun receiveBroadcast(source: ByteString, data: Source) {
+        }
     }
 }

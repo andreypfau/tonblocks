@@ -12,7 +12,7 @@ import kotlin.jvm.JvmName
 
 @Serializable
 @SerialName("overlay.query")
-@TLCombinatorId(0xFCC85CEA)
+@TLCombinatorId(0xCCFD8443)
 public data class OverlayQuery(
     @TLFixedSize(value = 32)
     @get:JvmName("overlay")

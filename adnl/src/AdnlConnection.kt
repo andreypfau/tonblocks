@@ -67,10 +67,6 @@ abstract class AdnlConnection(
                 return
             }
         }
-        if (packet.messages.isEmpty()) {
-            println("$this empty ADNL packet: ${packet.tl()}")
-            return
-        }
 
         packet.messages.forEach { message ->
             handleMessage(message)
@@ -174,16 +170,16 @@ abstract class AdnlConnection(
         }
     }
 
-    override suspend fun sendQuery(query: Source): Source {
+    override suspend fun sendQuery(data: Source): Source {
         val queryId = ByteString(*Random.nextBytes(32))
         val deferred = CompletableDeferred<Buffer>()
         deferred.invokeOnCompletion { queries.remove(queryId) }
         queries[queryId] = deferred
-        sendMessage(AdnlMessageQuery(queryId, query.readByteArray()))
+        sendMessage(AdnlMessageQuery(queryId, data.readByteArray()))
         return deferred.await()
     }
 
-    override suspend fun sendCustom(data: Source) {
+    override suspend fun sendMessage(data: Source) {
         sendMessage(AdnlMessageCustom(data.readByteArray()))
     }
 

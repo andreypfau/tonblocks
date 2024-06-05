@@ -9,7 +9,7 @@ import kotlin.jvm.JvmName
 
 @Serializable
 @SerialName("overlay.getRandomPeers")
-@TLCombinatorId(0x79B0A679)
+@TLCombinatorId(0x48ee64ab)
 public data class OverlayGetRandomPeers(
     @get:JvmName("peers")
     public val peers: OverlayNodes,

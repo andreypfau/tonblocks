@@ -1,6 +1,7 @@
 package io.tonblocks.overlay
 
 import io.github.andreypfau.tl.serialization.TL
+import io.github.andreypfau.tl.serialization.encodeToSink
 import io.github.reactivecircus.cache4k.Cache
 import io.tonblocks.adnl.AdnlAddressResolver
 import io.tonblocks.adnl.AdnlClient
@@ -11,6 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.io.Buffer
 import kotlinx.io.Source
+import kotlinx.io.bytestring.ByteString
 import tl.ton.overlay.OverlayMessage
 import tl.ton.overlay.OverlayNodes
 import tl.ton.overlay.OverlayQuery
@@ -27,9 +29,17 @@ interface Overlay : CoroutineScope {
     val maxNeighbours: Int get() = 5
 
     fun addPeer(node: OverlayNode)
+
+    suspend fun receiveMessage(source: AdnlClient, data: Source)
+
+    suspend fun receiveQuery(source: AdnlClient, data: Source): Buffer
+
+    suspend fun receiveBroadcast(source: ByteString, data: Source)
+
+    suspend fun checkBroadcast(source: Source, data: Source) {}
 }
 
-abstract class OverlayImpl(
+abstract class AbstractOverlay(
     val localNode: AdnlLocalNode,
     override val id: OverlayIdFull,
     override val isPublic: Boolean,
@@ -70,21 +80,19 @@ abstract class OverlayImpl(
     }
 
     suspend fun searchRandomPeers(nodesResolver: OverlayNodesResolver) {
-        println("resolve nodes: ${id.shortId()}")
+//        println("resolve nodes: ${id.shortId()}")
         val randomPeers = nodesResolver.resolveNodes(id) ?: return
-        println("$this found ${randomPeers.size} peers from dht")
+//        println("$this found ${randomPeers.size} peers from dht")
         randomPeers.forEach {
             addPeer(it)
         }
     }
 
     suspend fun searchRandomPeers(node: OverlayNode) {
-        println("try to find other peers in $node")
-        val connection = connection(node) ?: return
-        println("Got connection, asking query")
-        val randomPeers = OverlayClient(connection).getRandomPeers(
-            OverlayNodes(peers_.asSequence().shuffled().take(maxNeighbours).map { it.tl() }.toList())
-        ).nodes.map { OverlayNode(it) }
+        val connection = requireNotNull(connection(node)) { "Unreachable: $node" }
+        val knownPeers = OverlayNodes(peers_.asSequence().shuffled().take(maxNeighbours).map { it.tl() }.toList())
+        val client = OverlayClient(connection)
+        val randomPeers = client.getRandomPeers(knownPeers).nodes.map { OverlayNode(it) }
         randomPeers.forEach {
             addPeer(it)
         }
@@ -93,27 +101,16 @@ abstract class OverlayImpl(
     private inner class OverlayConnection(
         val connection: AdnlConnection
     ) : AdnlClient {
-        override suspend fun sendQuery(query: Source): Source {
+        override suspend fun sendQuery(data: Source): Source {
             val buffer = Buffer()
-            val queryPrefix = OverlayQuery(
-                overlay = id.shortId().publicKeyHash
-            )
-            TL.encodeToSink(OverlayQuery.serializer(), buffer, queryPrefix)
-            query.transferTo(buffer)
-            val answer = connection.sendQuery(buffer)
-            val answerPrefix = TL.Boxed.decodeFromSource(OverlayQuery.serializer(), answer)
-            check(queryPrefix == answerPrefix) {
-                "Invalid answer overlay prefix, expected: $queryPrefix, actual: $answerPrefix"
-            }
-            return answer
+            TL.Boxed.encodeToSink(buffer, OverlayQuery(id.shortId().publicKeyHash))
+            data.transferTo(buffer)
+            return connection.sendQuery(buffer)
         }
 
-        override suspend fun sendCustom(data: Source) {
+        override suspend fun sendMessage(data: Source) {
             val buffer = Buffer()
-            val messagePrefix = OverlayMessage(
-                overlay = id.shortId().publicKeyHash
-            )
-            TL.encodeToSink(OverlayMessage.serializer(), buffer, messagePrefix)
+            TL.encodeToSink(buffer, OverlayMessage(id.shortId().publicKeyHash))
             data.transferTo(buffer)
             connection.sendQuery(buffer)
         }

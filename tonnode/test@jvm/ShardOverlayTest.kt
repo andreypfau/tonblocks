@@ -2,11 +2,15 @@ package io.tonblocks.tonnode
 
 import io.tonblocks.adnl.AdnlAddress
 import io.tonblocks.adnl.AdnlAddressList
+import io.tonblocks.adnl.AdnlIdFull
 import io.tonblocks.adnl.AdnlLocalNode
 import io.tonblocks.adnl.transport.UdpAdnlTransport
 import io.tonblocks.crypto.ed25519.Ed25519
 import io.tonblocks.dht.DhtImpl
 import io.tonblocks.dht.DhtNode
+import io.tonblocks.overlay.OverlayNode
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.bytestring.ByteString
@@ -28,8 +32,10 @@ class ShardOverlayTest {
         key = Ed25519.random()
     )
 
+    @OptIn(ExperimentalStdlibApi::class)
     @Test
     fun testShardOverlay() = runBlocking {
+
         val dht = DhtImpl(localNode)
         dht.addNode(
             DhtNode(
@@ -40,17 +46,37 @@ class ShardOverlayTest {
             )
         )
 
-        val shard = TonNodeShardImpl(localNode, dht, ShardIdFull(ShardIdFull.MASTERCHAIN_ID), TON_MAINNET)
-        shard.overlay.searchRandomPeers(dht)
-        shard.overlay.peers.forEach {
-            println("\n\n\nstart check $it")
-            val res = withTimeoutOrNull(30000) {
-                shard.overlay.searchRandomPeers(it)
-            }
-            if (res == null) {
-                println("failed: $it")
-            }
+        val shard = TonNodeShardImpl(localNode, dht, ShardIdFull(ShardIdFull.BASECHAIN_ID), TON_MAINNET)
+        while (true) {
+            shard.overlay.searchRandomPeers(dht)
+            shard.overlay.peers.map {
+                launch {
+                    val res = withTimeoutOrNull(5000) {
+                        shard.overlay.searchRandomPeers(it)
+                    }
+                    if (res == null) {
+                        println("failed: $it")
+                    } else {
+                        println("Success? $it")
+                    }
+                }
+            }.joinAll()
         }
+    }
 
+    @Test
+    fun testLocalShard(): Unit = runBlocking {
+        val dht = DhtImpl(localNode)
+        val shard = TonNodeShardImpl(localNode, adnlAddressResolver = {
+            AdnlAddressList(AdnlAddress.Udp(2130706433, 3333))
+        }, ShardIdFull(-1), Base64.decodeToByteString("jeONPewYVwSEEjU3p4FecT1rHKpAn3E8meIoTmr+pS4="))
+        shard.overlay.searchRandomPeers(
+            OverlayNode(
+                source = AdnlIdFull(Ed25519.PublicKey(Base64.decode("8QcsaTUGycIWWNVW1fiaSPBxNztZrl3UQ88HwXCLkFo="))),
+                overlayId = shard.overlay.id.shortId(),
+                version = 10,
+                signature = ByteString()
+            )
+        )
     }
 }

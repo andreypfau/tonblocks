@@ -136,7 +136,6 @@ class AdnlLocalNode(
         if (connection != null) {
             return connection
         }
-        println("resolving address: $id")
         val addresses = resolver.resolveAddress(shortId) ?: return null
         connection = createConnection(id, addresses)
         connections.put(shortId, connection)

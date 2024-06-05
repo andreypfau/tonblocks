@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.takeWhile
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
-import kotlinx.io.bytestring.toHexString
 import tl.ton.dht.DhtValueResult
 import tl.ton.overlay.OverlayNodes
 import kotlin.coroutines.CoroutineContext
@@ -152,9 +151,7 @@ class DhtImpl(
     }
 
     override suspend fun resolveNodes(id: ShortId<OverlayIdShort>): List<OverlayNode>? {
-        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "nodes", 0).also {
-            println("find value: $it")
-        }) ?: return null
+        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "nodes", 0)) ?: return null
         return TL.Boxed.decodeFromByteString(OverlayNodes.serializer(), dhtValue.value).nodes.map {
             OverlayNode(it)
         }
@@ -169,18 +166,18 @@ class DhtImpl(
     ): T? {
         var currentBeam = routingTable.nearest(key, k * 2)
         val visited = mutableSetOf<AdnlIdShort>()
-        println("Look for key: ${key.toHexString()} ${key[0].toUByte().toString(2).padStart(8, '0')}")
+//        println("Look for key: ${key.toHexString()} ${key[0].toUByte().toString(2).padStart(8, '0')}")
         var foundResult: T? = null
         while (foundResult == null && currentBeam.isNotEmpty()) {
-            println(
-                "Beam iteration: ${currentBeam.size}\n${
-                    currentBeam.joinToString("\n") {
-                        "${it.xorDistance(key)} ${it.node.id.shortId()} | ${
-                            it.node.id.shortId().publicKeyHash[0].toUByte().toString(2).padStart(8, '0')
-                        }"
-                    }
-                }"
-            )
+//            println(
+//                "Beam iteration: ${currentBeam.size}\n${
+//                    currentBeam.joinToString("\n") {
+//                        "${it.xorDistance(key)} ${it.node.id.shortId()} | ${
+//                            it.node.id.shortId().publicKeyHash[0].toUByte().toString(2).padStart(8, '0')
+//                        }"
+//                    }
+//                }"
+//            )
             val expanded = mutableListOf<DhtNode>()
             channelFlow {
                 currentBeam.forEach { node ->
