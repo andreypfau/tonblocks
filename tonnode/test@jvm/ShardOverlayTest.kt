@@ -46,22 +46,20 @@ class ShardOverlayTest {
             )
         )
 
-        val shard = TonNodeShardImpl(localNode, dht, ShardIdFull(ShardIdFull.BASECHAIN_ID), TON_MAINNET)
-        while (true) {
-            shard.overlay.searchRandomPeers(dht)
-            shard.overlay.peers.map {
-                launch {
-                    val res = withTimeoutOrNull(5000) {
-                        shard.overlay.searchRandomPeers(it)
-                    }
-                    if (res == null) {
-                        println("failed: $it")
-                    } else {
-                        println("Success? $it")
-                    }
+        val shard = TonNodeShardImpl(localNode, dht, ShardIdFull(ShardIdFull.MASTERCHAIN_ID), TON_MAINNET)
+        shard.overlay.searchRandomPeers(dht)
+        shard.overlay.peers.map {
+            launch {
+                val res = withTimeoutOrNull(5000) {
+                    shard.overlay.searchRandomPeers(it)
                 }
-            }.joinAll()
-        }
+                if (res == null) {
+//                    println("failed: $it")
+                } else {
+                    println("Success? $it")
+                }
+            }
+        }.joinAll()
     }
 
     @Test

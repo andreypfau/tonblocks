@@ -1,6 +1,7 @@
 package io.tonblocks.dht
 
 import io.github.andreypfau.tl.serialization.TL
+import io.github.andreypfau.tl.serialization.decodeFromByteString
 import io.tonblocks.adnl.*
 import io.tonblocks.crypto.ShortId
 import io.tonblocks.kv.KeyValueRepository
@@ -10,9 +11,18 @@ import io.tonblocks.overlay.OverlayNode
 import io.tonblocks.overlay.OverlayNodesResolver
 import kotlinx.atomicfu.atomic
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flattenConcat
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toSet
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
@@ -44,12 +54,12 @@ interface Dht : AdnlAddressResolver, OverlayNodesResolver, CoroutineScope {
     /**
      * Get a value from the DHT by key hash
      */
-    suspend fun get(hash: ByteString): DhtValue?
+    suspend fun get(hash: ByteString): Flow<DhtValue>
 
     /**
      * Get a value from the DHT by key preimage
      */
-    suspend fun get(key: DhtKey): DhtValue? = get(key.hash())
+    suspend fun get(key: DhtKey): Flow<DhtValue> = get(key.hash())
 
     /**
      * Set a value in the DHT
@@ -112,21 +122,24 @@ class DhtImpl(
 //        }
     }
 
-    override suspend fun get(hash: ByteString): DhtValue? {
+    override suspend fun get(hash: ByteString): Flow<DhtValue> = flow {
         val storedValue = repository.get(hash)
         if (storedValue != null) {
             if (storedValue.isExpired()) {
                 repository.remove(hash)
             } else {
-                return storedValue
+                emit(storedValue)
             }
         }
-        return beamSearch(
+        val beamSearchFlow = beamSearch(
             key = hash,
             query = { findValue(it) },
             condition = { (value, _) -> value != null && !value.isExpired() && value.isValid() },
             nextNodes = { (_, nodes) -> nodes }
-        )?.first
+        ).mapNotNull { (value, _) ->
+            value
+        }
+        emitAll(beamSearchFlow)
     }
 
     suspend fun findNodes() {
@@ -140,21 +153,22 @@ class DhtImpl(
             query = { findNode(it) },
             condition = { false },
             nextNodes = { it }
-        )
+        ).collect()
     }
 
     override suspend fun resolveAddress(id: ShortId<AdnlIdShort>): AdnlAddressList? {
-        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "address", 0)) ?: return null
+        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "address", 0)).firstOrNull() ?: return null
         return AdnlAddressList(
             TL.Boxed.decodeFromByteString(TlAdnlAddressList.serializer(), dhtValue.value)
         )
     }
 
-    override suspend fun resolveNodes(id: ShortId<OverlayIdShort>): List<OverlayNode>? {
-        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "nodes", 0)) ?: return null
-        return TL.Boxed.decodeFromByteString(OverlayNodes.serializer(), dhtValue.value).nodes.map {
-            OverlayNode(it)
-        }
+    override suspend fun resolveNodes(id: ShortId<OverlayIdShort>): List<OverlayNode> {
+        return get(DhtKey(id.shortId().publicKeyHash, "nodes", 0)).take(a * 2).map { dhtValue ->
+            TL.Boxed.decodeFromByteString<OverlayNodes>(dhtValue.value).nodes.asFlow().map {
+                OverlayNode(it)
+            }
+        }.flattenConcat().toSet().distinctBy { it.source }
     }
 
     @OptIn(ExperimentalStdlibApi::class)
@@ -163,12 +177,11 @@ class DhtImpl(
         query: suspend RemoteDhtNode.(ByteString) -> T,
         condition: (T) -> Boolean,
         nextNodes: (T) -> List<DhtNode>
-    ): T? {
+    ) = flow<T> {
         var currentBeam = routingTable.nearest(key, k * 2)
         val visited = mutableSetOf<AdnlIdShort>()
 //        println("Look for key: ${key.toHexString()} ${key[0].toUByte().toString(2).padStart(8, '0')}")
-        var foundResult: T? = null
-        while (foundResult == null && currentBeam.isNotEmpty()) {
+        while (currentBeam.isNotEmpty()) {
 //            println(
 //                "Beam iteration: ${currentBeam.size}\n${
 //                    currentBeam.joinToString("\n") {
@@ -190,10 +203,9 @@ class DhtImpl(
                         }
                     }
                 }
-            }.takeWhile { result ->
+            }.collect { result ->
                 if (condition(result)) {
-                    foundResult = result
-                    false
+                    emit(result)
                 } else {
                     val nodes = nextNodes(result)
                     for (node in nodes) {
@@ -201,11 +213,7 @@ class DhtImpl(
                             expanded.add(node)
                         }
                     }
-                    true
                 }
-            }.collect()
-            if (foundResult != null) {
-                break
             }
 
             currentBeam = expanded.asSequence()
@@ -214,8 +222,6 @@ class DhtImpl(
                 .take(a * 2)
                 .toList()
         }
-
-        return foundResult
     }
 
     inner class RemoteDhtNode(

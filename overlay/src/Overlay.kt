@@ -10,6 +10,7 @@ import io.tonblocks.adnl.AdnlIdShort
 import io.tonblocks.adnl.AdnlLocalNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.datetime.Clock
 import kotlinx.io.Buffer
 import kotlinx.io.Source
 import kotlinx.io.bytestring.ByteString
@@ -52,10 +53,15 @@ abstract class AbstractOverlay(
     private val connections = Cache.Builder<AdnlIdShort, OverlayConnection>()
         .expireAfterAccess(15.minutes)
         .build()
+    private val selfNode by lazy {
+        selfOverlayNode().sign(localNode.key).tl()
+    }
 
     val peers: List<OverlayNode> get() = peers_
 
     override fun addPeer(node: OverlayNode) {
+        if (node.overlayId != id.shortId()) return
+        if (!node.checkSignature()) return
         peers_.add(node)?.let { contested ->
             removePeer(contested)
         }
@@ -80,9 +86,8 @@ abstract class AbstractOverlay(
     }
 
     suspend fun searchRandomPeers(nodesResolver: OverlayNodesResolver) {
-//        println("resolve nodes: ${id.shortId()}")
         val randomPeers = nodesResolver.resolveNodes(id) ?: return
-//        println("$this found ${randomPeers.size} peers from dht")
+        println("$this found ${randomPeers.size} peers from dht")
         randomPeers.forEach {
             addPeer(it)
         }
@@ -90,9 +95,12 @@ abstract class AbstractOverlay(
 
     suspend fun searchRandomPeers(node: OverlayNode) {
         val connection = requireNotNull(connection(node)) { "Unreachable: $node" }
-        val knownPeers = OverlayNodes(peers_.asSequence().shuffled().take(maxNeighbours).map { it.tl() }.toList())
+        val knownPeers = OverlayNodes(
+            listOf(selfNode) + peers_.asSequence().shuffled().take(maxNeighbours - 1).map { it.tl() }.toList()
+        )
         val client = OverlayClient(connection)
         val randomPeers = client.getRandomPeers(knownPeers).nodes.map { OverlayNode(it) }
+        println("found ${randomPeers.size} from $node")
         randomPeers.forEach {
             addPeer(it)
         }
@@ -115,6 +123,10 @@ abstract class AbstractOverlay(
             connection.sendQuery(buffer)
         }
     }
+
+    private fun selfOverlayNode(
+        version: Int = Clock.System.now().epochSeconds.toInt()
+    ): OverlayNode = OverlayNode(localNode.id, id.shortId(), version).sign(localNode.key)
 
     override fun toString(): String = "[$id]"
 }

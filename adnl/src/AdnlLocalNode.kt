@@ -167,9 +167,11 @@ class AdnlLocalNode(
             override val remotePeer: AdnlPeer = AdnlPeer(id)
 
             override suspend fun handleCustom(data: Source) {
+                println("CUSTOM=$data")
             }
 
             override suspend fun handleQuery(queryId: AdnlQueryId, data: Source) {
+                println("QUERY=$data")
             }
         }
         connection.coroutineContext.job.invokeOnCompletion {
