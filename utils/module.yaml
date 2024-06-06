@@ -6,3 +6,5 @@ product:
     - linuxX64
 dependencies:
   - $libs.kotlinx.atomicfu
+  - $libs.kotlinx.io.core
+  - $libs.kotlinx.coroutines.core
