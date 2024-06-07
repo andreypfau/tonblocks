@@ -5,8 +5,8 @@ import io.tonblocks.crypto.Encryptor
 import io.tonblocks.crypto.PublicKey
 import kotlinx.io.bytestring.ByteString
 import kotlinx.io.bytestring.isNotEmpty
-import tl.ton.dht.DhtKeyDescription
-import tl.ton.dht.DhtUpdateRule
+import tl.ton.DhtKeyDescription
+import tl.ton.DhtUpdateRule
 
 object OverlayEncryptor : Encryptor {
     override fun encryptToByteArray(source: ByteArray, startIndex: Int, endIndex: Int): ByteArray {

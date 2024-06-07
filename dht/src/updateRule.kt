@@ -5,7 +5,7 @@ import io.tonblocks.adnl.AdnlIdFull
 import kotlinx.io.bytestring.ByteString
 import kotlinx.io.bytestring.isEmpty
 import kotlinx.io.bytestring.isNotEmpty
-import tl.ton.overlay.node.OverlayNodeToSign
+import tl.ton.OverlayNodeToSign
 
 sealed class DhtUpdateRule {
     abstract val needRepublish: Boolean
@@ -48,7 +48,7 @@ sealed class DhtUpdateRule {
                 return false
             }
             val nodes = TL.Boxed.decodeFromByteString(
-                tl.ton.overlay.OverlayNodes.serializer(),
+                tl.ton.OverlayNodes.serializer(),
                 value.value
             )
             for (node in nodes.nodes) {

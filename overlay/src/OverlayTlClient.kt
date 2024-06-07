@@ -3,12 +3,7 @@ package io.tonblocks.overlay
 import io.tonblocks.adnl.AdnlClient
 import io.tonblocks.adnl.sendTlQuery
 import kotlinx.io.bytestring.ByteString
-import tl.ton.overlay.OverlayBroadcast
-import tl.ton.overlay.OverlayBroadcastList
-import tl.ton.overlay.OverlayGetBroadcast
-import tl.ton.overlay.OverlayGetBroadcastList
-import tl.ton.overlay.OverlayGetRandomPeers
-import tl.ton.overlay.OverlayNodes
+import tl.ton.*
 
 class OverlayClient(
     private val adnlClient: AdnlClient

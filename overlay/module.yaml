@@ -17,3 +17,4 @@ dependencies:
   - $libs.kotlinx.atomicfu
   - $libs.kotlinx.datetime
   - $libs.cache4k
+  - $libs.kotlinx.crypto.sha2

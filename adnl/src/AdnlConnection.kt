@@ -91,7 +91,7 @@ abstract class AdnlConnection(
                 }
                 if (transfer.isComplete() && transfer.isValid() && transfer.delivered.compareAndSet(false, true)) {
 //                    println("$this Got data: ${ByteString(transfer.data)}")
-                    val newMessage = AdnlMessage(TL.decodeFromByteArray<tl.ton.adnl.AdnlMessage>(transfer.data))
+                    val newMessage = AdnlMessage(TL.decodeFromByteArray<tl.ton.AdnlMessage>(transfer.data))
 //                    println("$this Got new reassembled message: $newMessage")
                     handleMessage(newMessage)
                 }
@@ -129,17 +129,20 @@ abstract class AdnlConnection(
             }
 
             is AdnlMessageCustom -> {
-                handleCustom(Buffer().apply {
+                val data = Buffer().apply {
                     write(message.data)
-                })
+                }
+                localNode.handleMessage(this, data)
             }
 
             is AdnlMessageQuery -> {
-                handleQuery(message.queryId, Buffer().apply {
+                val query = Buffer().apply {
                     write(message.data)
-                })
+                }
+                val answer = Buffer()
+                localNode.handleQuery(this, query, answer)
+                sendMessage(AdnlMessageAnswer(message.queryId, answer.readByteArray()))
             }
-
             is AdnlMessageReinit -> reinit(message.date)
             AdnlMessageNop -> {}
         }
@@ -201,10 +204,6 @@ abstract class AdnlConnection(
         val destinationId = channel?.output?.id ?: remotePeer.id.shortId()
         transport.sendDatagram(destinationId, addressList.random(), ByteReadPacket(encrypted))
     }
-
-    abstract suspend fun handleCustom(data: Source)
-
-    abstract suspend fun handleQuery(queryId: AdnlQueryId, data: Source)
 
     private fun updateAddrList(addressList: AdnlAddressList) {
         if (addressList.isEmpty()) return

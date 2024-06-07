@@ -5,7 +5,7 @@ import io.tonblocks.adnl.message.AdnlMessage
 import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.datetime.Instant
 import kotlinx.io.bytestring.ByteString
-import tl.ton.adnl.AdnlPacketContents
+import tl.ton.AdnlPacketContents
 import kotlin.random.Random
 
 class AdnlPacket internal constructor(

@@ -173,6 +173,7 @@ class TLDecoder(
     ): T {
         if (descriptor.isTLBoxed(index)) {
             val expected = deserializer.descriptor.getTlCombinatorId()
+            source.peek()
             val actual = decodeInt()
             check(expected == actual) {
                 "Invalid boxed ID, expected: $expected (${expected.toHexString()}), actual: $actual (${actual.toHexString()})"

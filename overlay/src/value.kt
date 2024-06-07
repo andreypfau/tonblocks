@@ -5,7 +5,8 @@ import io.tonblocks.adnl.AdnlIdFull
 import io.tonblocks.crypto.PrivateKey
 import kotlinx.io.bytestring.ByteString
 import kotlinx.serialization.encodeToByteArray
-import tl.ton.overlay.node.OverlayNodeToSign
+import tl.ton.OverlayNode
+import tl.ton.OverlayNodeToSign
 
 data class OverlayNode(
     val source: AdnlIdFull,
@@ -13,14 +14,14 @@ data class OverlayNode(
     val version: Int,
     var signature: ByteString = ByteString()
 ) {
-    constructor(tl: tl.ton.overlay.OverlayNode) : this(
+    constructor(tl: OverlayNode) : this(
         source = AdnlIdFull(tl.id),
         overlayId = OverlayIdShort(tl.overlay),
         version = tl.version,
         signature = tl.signature
     )
 
-    fun tl(): tl.ton.overlay.OverlayNode = tl.ton.overlay.OverlayNode(
+    fun tl(): OverlayNode = OverlayNode(
         id = source.publicKey.tl(),
         overlay = overlayId.publicKeyHash,
         version = version,

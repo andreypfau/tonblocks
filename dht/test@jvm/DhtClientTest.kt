@@ -14,7 +14,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.io.bytestring.ByteString
-import tl.ton.tonnode.TonNodeShardPublicOverlayId
+import tl.ton.TonNodeShardPublicOverlayId
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.time.measureTimedValue

@@ -12,7 +12,7 @@ import io.tonblocks.crypto.aes.PublicKeyAes
 import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.datetime.Instant
 import kotlinx.serialization.decodeFromByteArray
-import tl.ton.adnl.AdnlPacketContents
+import tl.ton.AdnlPacketContents
 
 class AdnlChannel(
     val connection: AdnlConnection,

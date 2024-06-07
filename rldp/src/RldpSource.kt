@@ -4,7 +4,7 @@ import io.tonblocks.utils.io.AsyncRawSource
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.io.Buffer
-import tl.ton.rldp2.Rldp2MessagePart
+import tl.ton.Rldp2MessagePart
 import kotlin.coroutines.CoroutineContext
 
 class RldpSource(

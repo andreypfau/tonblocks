@@ -9,39 +9,45 @@ import kotlinx.io.bytestring.toHexString
 sealed interface AdnlMessage {
     val size: Int
 
-    fun tl(): tl.ton.adnl.AdnlMessage
+    fun tl(): tl.ton.AdnlMessage
 }
 
-fun AdnlMessage(tl: tl.ton.adnl.AdnlMessage): AdnlMessage {
+fun AdnlMessage(tl: tl.ton.AdnlMessage): AdnlMessage {
     return when(tl) {
-        is tl.ton.adnl.AdnlMessage.Query -> AdnlMessageQuery(
+        is tl.ton.AdnlMessage.Query -> AdnlMessageQuery(
             queryId = tl.queryId,
             data = tl.query.toByteArray()
         )
-        is tl.ton.adnl.AdnlMessage.Answer -> AdnlMessageAnswer(
+
+        is tl.ton.AdnlMessage.Answer -> AdnlMessageAnswer(
             queryId = tl.queryId,
             answer = tl.answer.toByteArray()
         )
-        is tl.ton.adnl.AdnlMessage.Custom -> AdnlMessageCustom(
+
+        is tl.ton.AdnlMessage.Custom -> AdnlMessageCustom(
             data = tl.data.toByteArray()
         )
-        is tl.ton.adnl.AdnlMessage.ConfirmChannel -> AdnlMessageConfirmChannel(
+
+        is tl.ton.AdnlMessage.ConfirmChannel -> AdnlMessageConfirmChannel(
             key = Ed25519.PublicKey(tl.key.toByteArray()),
             peerKey = Ed25519.PublicKey(tl.peerKey.toByteArray()),
             date = Instant.fromEpochSeconds(tl.date.toLong())
         )
-        is tl.ton.adnl.AdnlMessage.CreateChannel -> AdnlMessageCreateChannel(
+
+        is tl.ton.AdnlMessage.CreateChannel -> AdnlMessageCreateChannel(
             key = Ed25519.PublicKey(tl.key.toByteArray()),
             date = Instant.fromEpochSeconds(tl.date.toLong())
         )
-        is tl.ton.adnl.AdnlMessage.Nop ->  AdnlMessageNop
-        is tl.ton.adnl.AdnlMessage.Part -> AdnlMessagePart(
+
+        is tl.ton.AdnlMessage.Nop -> AdnlMessageNop
+        is tl.ton.AdnlMessage.Part -> AdnlMessagePart(
             hash = tl.hash,
             totalSize = tl.totalSize,
             offset = tl.offset,
             data = tl.data.toByteArray()
         )
-        is tl.ton.adnl.AdnlMessage.Reinit -> AdnlMessageReinit(
+
+        is tl.ton.AdnlMessage.Reinit -> AdnlMessageReinit(
             date = Instant.fromEpochSeconds(tl.date.toLong())
         )
     }
@@ -53,7 +59,7 @@ class AdnlMessageCreateChannel(
 ) : AdnlMessage {
     override val size: Int get() = 40
 
-    override fun tl(): tl.ton.adnl.AdnlMessage = tl.ton.adnl.AdnlMessage.CreateChannel(
+    override fun tl(): tl.ton.AdnlMessage = tl.ton.AdnlMessage.CreateChannel(
         key = ByteString(*key.toByteArray()),
         date = date.epochSeconds.toInt()
     )
@@ -70,8 +76,8 @@ class AdnlMessageConfirmChannel(
 ) : AdnlMessage {
     override val size: Int get() = 72
 
-    override fun tl(): tl.ton.adnl.AdnlMessage {
-        return tl.ton.adnl.AdnlMessage.ConfirmChannel(
+    override fun tl(): tl.ton.AdnlMessage {
+        return tl.ton.AdnlMessage.ConfirmChannel(
             key = ByteString(*key.toByteArray()),
             peerKey = ByteString(*peerKey.toByteArray()),
             date = date.epochSeconds.toInt()
@@ -89,8 +95,8 @@ class AdnlMessageCustom(
 
     override val size: Int get() = data.size + 12
 
-    override fun tl(): tl.ton.adnl.AdnlMessage {
-        return tl.ton.adnl.AdnlMessage.Custom(
+    override fun tl(): tl.ton.AdnlMessage {
+        return tl.ton.AdnlMessage.Custom(
             data = ByteString(*data)
         )
     }
@@ -99,7 +105,7 @@ class AdnlMessageCustom(
 object AdnlMessageNop : AdnlMessage {
     override val size: Int get() = 4
 
-    override fun tl(): tl.ton.adnl.AdnlMessage = tl.ton.adnl.AdnlMessage.Nop
+    override fun tl(): tl.ton.AdnlMessage = tl.ton.AdnlMessage.Nop
 }
 
 class AdnlMessageReinit(
@@ -107,7 +113,7 @@ class AdnlMessageReinit(
 ) : AdnlMessage {
     override val size: Int get() = 8
 
-    override fun tl(): tl.ton.adnl.AdnlMessage = tl.ton.adnl.AdnlMessage.Reinit(
+    override fun tl(): tl.ton.AdnlMessage = tl.ton.AdnlMessage.Reinit(
         date = date.epochSeconds.toInt()
     )
 }
@@ -118,7 +124,7 @@ class AdnlMessageQuery(
 ) : AdnlMessage {
     override val size: Int get() = data.size + 44
 
-    override fun tl(): tl.ton.adnl.AdnlMessage = tl.ton.adnl.AdnlMessage.Query(
+    override fun tl(): tl.ton.AdnlMessage = tl.ton.AdnlMessage.Query(
         queryId = queryId,
         query = ByteString(*data)
     )
@@ -135,7 +141,7 @@ class AdnlMessageAnswer(
 ) : AdnlMessage {
     override val size: Int get() = answer.size + 44
 
-    override fun tl(): tl.ton.adnl.AdnlMessage = tl.ton.adnl.AdnlMessage.Answer(
+    override fun tl(): tl.ton.AdnlMessage = tl.ton.AdnlMessage.Answer(
         queryId = queryId,
         answer = ByteString(*answer)
     )
@@ -153,8 +159,8 @@ class AdnlMessagePart(
 ) : AdnlMessage {
     override val size: Int get() = data.size + 48
 
-    override fun tl(): tl.ton.adnl.AdnlMessage {
-        return tl.ton.adnl.AdnlMessage.Part(
+    override fun tl(): tl.ton.AdnlMessage {
+        return tl.ton.AdnlMessage.Part(
             hash = hash,
             totalSize = totalSize,
             offset = offset,

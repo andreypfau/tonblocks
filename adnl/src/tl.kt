@@ -2,8 +2,8 @@ package io.tonblocks.adnl
 
 import kotlinx.datetime.Instant
 
-typealias TlAdnlAddress = tl.ton.adnl.AdnlAddress
-typealias TlAdnlAddressList = tl.ton.adnl.AdnlAddressList
+typealias TlAdnlAddress = tl.ton.AdnlAddress
+typealias TlAdnlAddressList = tl.ton.AdnlAddressList
 
 fun AdnlAddressList.tl(): TlAdnlAddressList = TlAdnlAddressList(
     addrs = map { it.tl() },
@@ -22,7 +22,7 @@ fun AdnlAddressList(tl: TlAdnlAddressList): AdnlAddressList = AdnlAddressList(
 
 fun AdnlAddress.tl(): TlAdnlAddress = when(this) {
     is AdnlAddress.Udp -> {
-        tl.ton.adnl.AdnlAddress.Udp(
+        tl.ton.AdnlAddress.Udp(
             ip = ip,
             port = port,
         )
@@ -30,14 +30,15 @@ fun AdnlAddress.tl(): TlAdnlAddress = when(this) {
 }
 
 fun AdnlAddress(tl: TlAdnlAddress): AdnlAddress = when(tl) {
-    is tl.ton.adnl.AdnlAddress.Udp -> {
+    is tl.ton.AdnlAddress.Udp -> {
         AdnlAddress.Udp(
             ip = tl.ip,
             port = tl.port,
         )
     }
-    is tl.ton.adnl.AdnlAddress.Reverse -> TODO()
-    is tl.ton.adnl.AdnlAddress.Tunnel -> TODO()
-    is tl.ton.adnl.AdnlAddress.Udp -> TODO()
-    is tl.ton.adnl.AdnlAddress.Udp6 -> TODO()
+
+    is tl.ton.AdnlAddress.Reverse -> TODO()
+    is tl.ton.AdnlAddress.Tunnel -> TODO()
+    is tl.ton.AdnlAddress.Udp -> TODO()
+    is tl.ton.AdnlAddress.Udp6 -> TODO()
 }

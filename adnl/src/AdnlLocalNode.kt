@@ -4,7 +4,6 @@ import io.github.andreypfau.tl.serialization.TL
 import io.github.reactivecircus.cache4k.Cache
 import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.channel.AdnlChannel
-import io.tonblocks.adnl.query.AdnlQueryId
 import io.tonblocks.adnl.transport.AdnlTransport
 import io.tonblocks.crypto.PublicKey
 import io.tonblocks.crypto.ed25519.Ed25519
@@ -14,11 +13,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.job
 import kotlinx.datetime.Clock
+import kotlinx.io.Sink
 import kotlinx.io.Source
 import kotlinx.serialization.decodeFromByteArray
-import tl.ton.adnl.AdnlPacketContents
+import tl.ton.AdnlNode
+import tl.ton.AdnlPacketContents
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Duration.Companion.minutes
+
+typealias AdnlMessageCallback = suspend (AdnlConnection).(message: Source) -> Unit
+typealias AdnlQueryCallback = suspend (AdnlConnection).(query: Source, answer: Sink) -> Unit
 
 class AdnlLocalNode(
     val transport: AdnlTransport,
@@ -38,6 +42,8 @@ class AdnlLocalNode(
         .expireAfterAccess(15.minutes)
         .build()
     private val addressList_ = atomic(addressList)
+    private val messageCallbacks = ArrayList<AdnlMessageCallback>()
+    private val queryCallbacks = ArrayList<AdnlQueryCallback>()
 
     val addressList by addressList_
 
@@ -70,8 +76,8 @@ class AdnlLocalNode(
         println("$this updated addr list. New version set to ${newAddressList.version}")
     }
 
-    fun tl(): tl.ton.adnl.AdnlNode {
-        return tl.ton.adnl.AdnlNode(
+    fun tl(): AdnlNode {
+        return AdnlNode(
             id = key.publicKey().tl(),
             addrList = addressList.tl()
         )
@@ -151,6 +157,37 @@ class AdnlLocalNode(
         }
     }
 
+    suspend fun handleMessage(connection: AdnlConnection, data: Source) {
+        val iterator = messageCallbacks.iterator()
+        while (!data.exhausted() && iterator.hasNext()) {
+            iterator.next().invoke(connection, data)
+        }
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    suspend fun handleQuery(connection: AdnlConnection, query: Source, answer: Sink) {
+        val iterator = queryCallbacks.iterator()
+        while (!query.exhausted() && iterator.hasNext()) {
+            iterator.next().invoke(connection, query, answer)
+        }
+        if (!query.exhausted()) {
+            val firstInt = query.readInt()
+            throw IllegalStateException(
+                "Dropping query $connection, first int: $firstInt (${
+                    firstInt.toUInt().toHexString()
+                })"
+            )
+        }
+    }
+
+    fun subscribeMessage(messageCallback: AdnlMessageCallback) {
+        messageCallbacks.add(messageCallback)
+    }
+
+    fun subscribeQuery(queryCallback: AdnlQueryCallback) {
+        queryCallbacks.add(queryCallback)
+    }
+
     fun removeConnection(id: AdnlIdShort) {
         connection(id)?.channel?.value?.input?.id?.let {
             channels.invalidate(it)
@@ -165,14 +202,6 @@ class AdnlLocalNode(
         val connection = object : AdnlConnection(transport, addressList, coroutineContext) {
             override val localNode: AdnlLocalNode = this@AdnlLocalNode
             override val remotePeer: AdnlPeer = AdnlPeer(id)
-
-            override suspend fun handleCustom(data: Source) {
-                println("CUSTOM=$data")
-            }
-
-            override suspend fun handleQuery(queryId: AdnlQueryId, data: Source) {
-                println("QUERY=$data")
-            }
         }
         connection.coroutineContext.job.invokeOnCompletion {
             connections.invalidate(id.shortId())
@@ -186,4 +215,6 @@ class AdnlLocalNode(
     override fun toString(): String {
         return "[LocalNode ${id.shortId()}]"
     }
+
+
 }

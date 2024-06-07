@@ -6,7 +6,7 @@ import org.ton.adnl.AdnlPacket
 import org.ton.adnl.message.AdnlMessageCustom
 import org.ton.adnl.message.AdnlMessageNop
 import org.ton.ed25519.Ed25519
-import tl.ton.adnl.AdnlPacketContents
+import tl.ton.AdnlPacketContents
 import kotlin.test.Test
 
 class AdnlPacketEncodingTest {
