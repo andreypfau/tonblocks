@@ -3,6 +3,7 @@ product:
   platforms:
     - jvm
     - macosArm64
+    - linuxX64
 settings:
   kotlin:
     serialization:
