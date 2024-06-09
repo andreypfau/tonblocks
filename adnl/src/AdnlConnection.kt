@@ -6,7 +6,7 @@ import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.channel.AdnlChannel
 import io.tonblocks.adnl.message.*
 import io.tonblocks.adnl.query.AdnlQueryId
-import io.tonblocks.adnl.transport.AdnlTransport
+import io.tonblocks.adnl.transport.AdnlNetworkTransport
 import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.atomicfu.atomic
 import kotlinx.atomicfu.update
@@ -30,7 +30,7 @@ const val CHANNEL_PACKET_HEADER_BYTES = 128
 const val MAX_ADNL_MESSAGE = 1024
 
 abstract class AdnlConnection(
-    val transport: AdnlTransport,
+    val transport: AdnlNetworkTransport,
     addressList: AdnlAddressList,
     coroutineContext: CoroutineContext
 ) : CoroutineScope, AdnlClient {
@@ -38,7 +38,7 @@ abstract class AdnlConnection(
     override val coroutineContext: CoroutineContext = coroutineContext + job
 
     abstract val localNode: AdnlLocalNode
-    abstract val remotePeer: AdnlPeer
+    abstract val remotePeerId: AdnlIdFull
     private val channelKey: Ed25519.PrivateKey = Ed25519.random()
 
     val recvCounter = AdnlPacketCounter(transport.reinitDate)
@@ -77,7 +77,7 @@ abstract class AdnlConnection(
     suspend fun handleMessage(message: AdnlMessage) {
 //        println("$this Process message: $message")
         when (message) {
-            is AdnlMessagePart -> {
+            is AdnlPartMessage -> {
                 val transferId = message.hash
                 val transfer = transfers.get(transferId) {
                     AdnlPartMessageTransfer(
@@ -97,21 +97,21 @@ abstract class AdnlConnection(
                 }
             }
 
-            is AdnlMessageCreateChannel -> {
+            is AdnlCreateChannelMessage -> {
                 channel.update {
-                    AdnlChannel.create(this, channelKey, message.key, message.date)
+                    AdnlChannel.create(this, null, channelKey, message.key, message.date)
                 }
-                sendPacket(null, AdnlMessageConfirmChannel(channelKey.publicKey(), message.key, message.date))
+                sendPacket(null, AdnlConfirmChannelMessage(channelKey.publicKey(), message.key, message.date))
             }
 
-            is AdnlMessageConfirmChannel -> {
+            is AdnlConfirmChannelMessage -> {
                 if (message.peerKey != channelKey.publicKey()) {
                     println("$this Bad peer key in confirm channel message: ${message}, expected: ${channelKey.publicKey()}")
                     return
                 }
                 if (message.date != channel.value?.date) {
                     channel.update {
-                        AdnlChannel.create(this, channelKey, message.key, message.date)
+                        AdnlChannel.create(this, null, channelKey, message.key, message.date)
                     }
 //                    println("$this Setup channel: ${channel.value}")
                 }
@@ -128,14 +128,14 @@ abstract class AdnlConnection(
                 })
             }
 
-            is AdnlMessageCustom -> {
+            is AdnlCustomMessage -> {
                 val data = Buffer().apply {
                     write(message.data)
                 }
                 localNode.handleMessage(this, data)
             }
 
-            is AdnlMessageQuery -> {
+            is AdnlQueryMessage -> {
                 val query = Buffer().apply {
                     write(message.data)
                 }
@@ -143,8 +143,9 @@ abstract class AdnlConnection(
                 localNode.handleQuery(this, query, answer)
                 sendMessage(AdnlMessageAnswer(message.queryId, answer.readByteArray()))
             }
-            is AdnlMessageReinit -> reinit(message.date)
-            AdnlMessageNop -> {}
+
+            is AdnlReinitMessage -> reinit(message.date)
+            AdnlNopMessage -> {}
         }
     }
 
@@ -152,15 +153,15 @@ abstract class AdnlConnection(
         val channel = channel.value
         val createChannelMsg = if (channel == null) {
             val pubKey = channelKey.publicKey()
-            AdnlMessageCreateChannel(
+            AdnlCreateChannelMessage(
                 key = pubKey,
                 date = Clock.System.now()
             )
         } else {
             null
         }
-        var size = createChannelMsg?.size ?: 0
-        size += message.size
+        var size = createChannelMsg?.serializedSize ?: 0
+        size += message.serializedSize
         if (size <= MAX_ADNL_MESSAGE) {
             if (createChannelMsg != null) {
 //                println("$this Send with message: $createChannelMsg")
@@ -169,7 +170,7 @@ abstract class AdnlConnection(
                 sendPacket(channel, message)
             }
         } else {
-            TODO("Too big message: ${message.size}")
+            TODO("Too big message: ${message.serializedSize}")
         }
     }
 
@@ -178,12 +179,12 @@ abstract class AdnlConnection(
         val deferred = CompletableDeferred<Buffer>()
         deferred.invokeOnCompletion { queries.remove(queryId) }
         queries[queryId] = deferred
-        sendMessage(AdnlMessageQuery(queryId, data.readByteArray()))
+        sendMessage(AdnlQueryMessage(queryId, data.readByteArray()))
         return deferred.await()
     }
 
     override suspend fun sendMessage(data: Source) {
-        sendMessage(AdnlMessageCustom(data.readByteArray()))
+        sendMessage(AdnlCustomMessage(data.readByteArray()))
     }
 
     @OptIn(ExperimentalStdlibApi::class)
@@ -198,10 +199,10 @@ abstract class AdnlConnection(
             packet.sign(localNode.key)
         }
         val data = TL.Boxed.encodeToByteArray(packet.tl())
-        val encryptor = channel?.output?.encryptor ?: remotePeer.id.publicKey.createEncryptor()
+        val encryptor = channel?.output?.encryptor ?: remotePeerId.publicKey.createEncryptor()
         val encrypted = encryptor.encryptToByteArray(data)
 //        println("$this send packet, seqno S${sendCounter.seqno}, R${recvCounter.seqno} | $channel")
-        val destinationId = channel?.output?.id ?: remotePeer.id.shortId()
+        val destinationId = channel?.output?.id ?: remotePeerId.shortId()
         transport.sendDatagram(destinationId, addressList.random(), ByteReadPacket(encrypted))
     }
 
@@ -224,5 +225,5 @@ abstract class AdnlConnection(
         }
     }
 
-    override fun toString(): String = "[->${remotePeer.id.shortId()}]"
+    override fun toString(): String = "[->${remotePeerId.shortId()}]"
 }

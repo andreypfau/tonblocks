@@ -4,7 +4,7 @@ import io.github.andreypfau.tl.serialization.TL
 import io.github.reactivecircus.cache4k.Cache
 import io.ktor.utils.io.core.*
 import io.tonblocks.adnl.channel.AdnlChannel
-import io.tonblocks.adnl.transport.AdnlTransport
+import io.tonblocks.adnl.transport.AdnlNetworkTransport
 import io.tonblocks.crypto.PublicKey
 import io.tonblocks.crypto.ed25519.Ed25519
 import kotlinx.atomicfu.atomic
@@ -25,7 +25,7 @@ typealias AdnlMessageCallback = suspend (AdnlConnection).(message: Source) -> Un
 typealias AdnlQueryCallback = suspend (AdnlConnection).(query: Source, answer: Sink) -> Unit
 
 class AdnlLocalNode(
-    val transport: AdnlTransport,
+    val transport: AdnlNetworkTransport,
     val key: Ed25519.PrivateKey,
     addressList: AdnlAddressList = AdnlAddressList(
         reinitDate = transport.reinitDate,
@@ -201,7 +201,7 @@ class AdnlLocalNode(
     ): AdnlConnection {
         val connection = object : AdnlConnection(transport, addressList, coroutineContext) {
             override val localNode: AdnlLocalNode = this@AdnlLocalNode
-            override val remotePeer: AdnlPeer = AdnlPeer(id)
+            override val remotePeerId = id
         }
         connection.coroutineContext.job.invokeOnCompletion {
             connections.invalidate(id.shortId())

@@ -4,6 +4,7 @@ import io.github.andreypfau.tl.serialization.TL
 import io.github.andreypfau.tl.serialization.decodeFromSource
 import io.github.andreypfau.tl.serialization.encodeToSink
 import io.github.reactivecircus.cache4k.Cache
+import io.tonblocks.adnl.AdnlAddressResolver
 import io.tonblocks.adnl.AdnlConnection
 import io.tonblocks.adnl.AdnlIdShort
 import io.tonblocks.overlay.broadcast.BroadcastIdShort
@@ -26,6 +27,12 @@ interface Overlay : CoroutineScope {
     val isPublic: Boolean
 
     suspend fun connection(adnlConnection: AdnlConnection): OverlayConnection
+
+    suspend fun connection(node: OverlayNode, addressResolver: AdnlAddressResolver): OverlayConnection? {
+        require(node.overlayId == id.shortId()) { "Invalid overlay id, expected: ${id.shortId()}, actual: ${node.overlayId}" }
+        val adnlConnection = localNode.adnl.connection(node.source, addressResolver) ?: return null
+        return connection(adnlConnection)
+    }
 
     suspend fun receiveMessage(connection: OverlayConnection, data: Source)
 

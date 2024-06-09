@@ -2,20 +2,21 @@ package io.tonblocks.adnl.channel
 
 import io.github.andreypfau.tl.serialization.TL
 import io.ktor.utils.io.core.*
-import io.tonblocks.adnl.AdnlConnection
-import io.tonblocks.adnl.AdnlIdShort
-import io.tonblocks.adnl.AdnlPacket
+import io.tonblocks.adnl.*
 import io.tonblocks.crypto.Decryptor
 import io.tonblocks.crypto.Encryptor
 import io.tonblocks.crypto.aes.PrivateKeyAes
 import io.tonblocks.crypto.aes.PublicKeyAes
 import io.tonblocks.crypto.ed25519.Ed25519
+import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Instant
 import kotlinx.serialization.decodeFromByteArray
 import tl.ton.AdnlPacketContents
 
 class AdnlChannel(
-    val connection: AdnlConnection,
+    @Deprecated("Use peer pair")
+    val connection: AdnlConnection?,
+    val peerPair: AdnlPeerPair?,
     val input: AdnlInputChannel,
     val output: AdnlOutputChannel,
     val date: Instant,
@@ -27,14 +28,26 @@ class AdnlChannel(
     }
 
     companion object {
+        // TODO: rewrite
         fun create(
-            connection: AdnlConnection,
+            connection: AdnlConnection?,
+            peerPair: AdnlPeerPair?,
             localKey: Ed25519.PrivateKey,
             remoteKey: Ed25519.PublicKey,
             date: Instant
         ): AdnlChannel {
-            val localId = connection.localNode.id.shortId()
-            val remoteId = connection.remotePeer.id.shortId()
+            val localId: AdnlIdShort
+            val remoteId: AdnlIdFull
+
+            if (connection != null) {
+                localId = connection.localNode.id.shortId()
+                remoteId = connection.remotePeerId
+            } else if (peerPair != null) {
+                localId = peerPair.node.id.shortId()
+                remoteId = AdnlIdFull(runBlocking { peerPair.peer.awaitPublicKey() })
+            } else {
+                throw IllegalStateException()
+            }
 
             val secret = localKey.sharedKey(remoteKey)
             val reversedSecret = secret.reversedArray()
@@ -58,7 +71,7 @@ class AdnlChannel(
             }
             val input = AdnlInputChannel(inputKey)
             val output = AdnlOutputChannel(outputKey)
-            return AdnlChannel(connection, input, output, date)
+            return AdnlChannel(connection, peerPair, input, output, date)
         }
     }
 

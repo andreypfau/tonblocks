@@ -17,7 +17,7 @@ import kotlin.coroutines.CoroutineContext
 class UdpAdnlTransport(
     bindAddress: InetSocketAddress,
     coroutineContext: CoroutineContext = Dispatchers.Default
-) : AdnlTransport {
+) : AdnlNetworkTransport {
     private val transportJob = Job()
     override val coroutineContext: CoroutineContext = coroutineContext + transportJob
 

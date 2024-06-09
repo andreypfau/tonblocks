@@ -146,10 +146,15 @@ class DhtImpl(
     }
 
     override suspend fun resolveAddress(id: ShortId<AdnlIdShort>): AdnlAddressList? {
-        val dhtValue = get(DhtKey(id.shortId().publicKeyHash, "address", 0)).firstOrNull() ?: return null
-        return AdnlAddressList(
-            TL.Boxed.decodeFromByteString(TlAdnlAddressList.serializer(), dhtValue.value)
-        )
+        return get(DhtKey(id.shortId().publicKeyHash, "address", 0))
+            .filter {
+                it.description.key.id == id.shortId().publicKeyHash
+            }
+            .map { dhtValue ->
+                AdnlAddressList(
+                    TL.Boxed.decodeFromByteString(TlAdnlAddressList.serializer(), dhtValue.value)
+                )
+            }.firstOrNull()
     }
 
     override suspend fun resolveNodes(id: ShortId<OverlayIdShort>): List<OverlayNode> {
@@ -184,7 +189,7 @@ class DhtImpl(
             channelFlow {
                 currentBeam.forEach { node ->
                     launch {
-                        val result = withTimeoutOrNull(Random.nextInt(3000, 5000).milliseconds) {
+                        val result = withTimeoutOrNull(Random.nextInt(2000, 4000).milliseconds) {
                             query(node, key)
                         }
                         if (result != null) {

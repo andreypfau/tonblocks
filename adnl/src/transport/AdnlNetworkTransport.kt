@@ -6,7 +6,7 @@ import io.tonblocks.adnl.AdnlIdShort
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.datetime.Instant
 
-interface AdnlTransport : CoroutineScope {
+interface AdnlNetworkTransport : CoroutineScope {
     val reinitDate: Instant
     val mtu: Int get() = 1024
 

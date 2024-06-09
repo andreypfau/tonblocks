@@ -4,7 +4,6 @@ import io.tonblocks.crypto.ShortId
 import kotlinx.io.Source
 
 class AdnlManager {
-    private val subscribers = List<>
 
     suspend fun receiveMessage(src: ShortId<AdnlIdShort>, dest: ShortId<AdnlIdShort>, data: Source) {
 

@@ -9,7 +9,7 @@ import kotlinx.datetime.Instant
 import kotlin.coroutines.CoroutineContext
 import kotlin.random.Random
 
-class LoopbackAdnlTransport : AdnlTransport {
+class LoopbackAdnlTransport : AdnlNetworkTransport {
     override val reinitDate: Instant = Clock.System.now()
     private val allowedSources = mutableSetOf<AdnlIdShort>()
     private val allowedDestinations = mutableSetOf<AdnlIdShort>()

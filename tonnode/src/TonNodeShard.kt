@@ -5,7 +5,6 @@ import io.github.andreypfau.tl.serialization.TL
 import io.tonblocks.overlay.Overlay
 import io.tonblocks.overlay.OverlayIdFull
 import io.tonblocks.overlay.OverlayLocalNode
-import io.tonblocks.overlay.OverlayNode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,8 +18,6 @@ interface TonNodeShard : CoroutineScope {
     val id: ShardIdFull
     val zeroStateFileHash: ByteString
     val overlay: Overlay
-
-    val maxNeighbours: Int get() = 16
 }
 
 fun OverlayIdFull(
@@ -42,13 +39,12 @@ class TonNodeShardImpl(
     val localNode: OverlayLocalNode,
     override val id: ShardIdFull,
     override val zeroStateFileHash: ByteString,
-    nodes: List<OverlayNode> = emptyList(),
     coroutineContext: CoroutineContext = Dispatchers.Default
 ) : TonNodeShard {
     private val job = SupervisorJob()
     override val coroutineContext: CoroutineContext = coroutineContext + job
 
-    override val overlay = localNode.overlay(OverlayIdFull(id, zeroStateFileHash), true, nodes) {
+    override val overlay = localNode.overlay(OverlayIdFull(id, zeroStateFileHash), true) {
         subscribeMessage { message ->
             println("$this message: ${message.readByteString()}")
         }
